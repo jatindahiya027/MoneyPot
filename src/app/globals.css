@@ -1,0 +1,490 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  :root {
+    --chart-1: green;
+    --chart-2: red;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+}
+
+body {
+  color: azure;
+}
+
+.wrapper {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+}
+.types {
+  width: 200px;
+  background-color: #0b0d10;
+  display: flex;
+  flex-direction: column;
+  /* justify-content: center; */
+  align-items: center;
+  flex-shrink: 0;
+  /* align-content: center; */
+}
+.heading {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin: 10px;
+  margin-top: 20px;
+}
+.data {
+  background-color: #202224;
+  display: flex;
+  flex-direction: row;
+  flex-grow: 1;
+}
+.headname {
+  font-size: 20px;
+  font-weight: 600;
+  /* margin-left: 100px; */
+}
+
+.button {
+  display: flex;
+  flex-direction: row;
+  /* justify-content: center; */
+  align-items: center;
+  /* background-color: #3b3b3c; */
+  width: 90%;
+  height: 40px;
+  border-radius: 10px;
+  margin: 5px;
+  text-align: left;
+}
+button.active {
+  background-color: #5a82e1;
+  /* color: white; */
+}
+.button > p {
+  padding: 16px;
+  width: 100%;
+}
+.button > img {
+  margin-left: 10px;
+}
+.spacemaker {
+  margin-top: 25px;
+}
+.dashdata {
+  /* flex-grow: 1; */
+  width: calc(100vw - 500px);
+  background-color: #0b0d10;
+}
+.profile {
+  width: 300px;
+  background-color: #0b0d10;
+  /* flex-shrink: 0; */
+}
+.dashdata > h1 {
+  margin: 0px;
+  margin-top: 20px;
+  margin-left: 20px;
+  font-size: 50px;
+}
+.profile > h1 {
+  margin: 10px;
+  margin-top: 36px;
+}
+.subhead {
+  font-weight: 600;
+  margin: 20px;
+  font-size: 20px;
+  margin-bottom: 0;
+}
+.graph {
+  display: flex;
+  flex-direction: row;
+}
+.maingraph {
+  height: 290px;
+  overflow: hidden;
+}
+.graphs {
+  margin: 10px;
+  margin-right: 0;
+}
+.areachart {
+  width: 60%;
+}
+.areachart > p {
+  margin: 0px;
+  /* font-size: 20px; */
+  margin-bottom: 0;
+}
+.piechart {
+  width: 30%;
+
+  margin: 10px;
+  /* font-size: 20px; */
+  margin-bottom: 0;
+}
+.areachartsize {
+  height: 200px;
+  margin-top: 30px;
+  width: 100%;
+}
+
+.chartbg {
+  background-color: rgba(255, 0, 0, 0);
+  border: 1px solid rgba(255, 0, 0, 0);
+  margin: 0;
+}
+.equalspace {
+  justify-content: space-between;
+}
+.place {
+  position: absolute;
+  bottom: 5px;
+  width: calc(100vw - 500px);
+}
+.info {
+  height: 80px;
+  width: 30%;
+  background-color: #181818;
+  border-radius: 20px;
+  margin: 10px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* align-items: center; */
+}
+.info > p {
+  margin-left: 20px;
+}
+
+.amount {
+  font-size: 1.8vw;
+  margin-top: 0;
+}
+.green {
+  color: green;
+}
+.red {
+  color: red;
+}
+.yellow {
+  color: yellow;
+}
+
+.profiledata {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.profimg {
+  border-radius: 50%;
+}
+.edit {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+.profeditbutton {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #181818;
+  margin: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tabledb {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+}
+
+td {
+  padding: 20px;
+  padding-bottom: 1px;
+  padding-top: 1px;
+  margin: 0;
+  font-weight: 300;
+  font-size: 15px;
+}
+.categ {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.categbox {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background-color: #181818;
+  justify-content: space-between;
+  margin: 10px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+
+.margin {
+  margin: 10px;
+  margin-bottom: 0;
+}
+.profsubhead {
+  display: flex;
+  flex-direction: row;
+  align-items: end;
+  /* margin-bottom: 1px; */
+}
+.seemore {
+  position: absolute;
+  right: 10px;
+  font-weight: 200;
+  color: #5a82e1;
+  font-size: 12px;
+}
+.catname {
+  position: absolute;
+  bottom: 5px;
+  width: 300px;
+}
+.aigenerated {
+  /* flex-grow: 1; */
+  height: 196px;
+  height: 95%;
+  /* background-color: #181818; */
+  width: 99%;
+  margin-left: 10px;
+  margin-bottom: 10px;
+  border-radius: 20px;
+  /* overflow: scroll; */
+  overflow-y: scroll;
+  /* padding: 5px; */
+}
+.aigenerated > div {
+  padding: 10px;
+  font-size: 12px;
+  height: 100%;
+  width: 100%;
+  text-align: left;
+}
+.aigenerated::-webkit-scrollbar {
+  /* display: none; */
+  width: 5px;
+  background-color: #181818;
+  border-radius: 5px;
+}
+
+/* _______________________________________________________________________________*/
+
+.transdiv {
+  background-color: #0b0d10;
+  width: calc(100vw - 200px);
+}
+.tableenclosure {
+  height: 40%;
+  width: 100%;
+  overflow-y: scroll;
+  margin-top: 10px;
+}
+.tableenclosure::-webkit-scrollbar {
+  /* display: none; */
+  width: 5px;
+  background-color: #181818;
+  border-radius: 5px;
+}
+
+.th {
+  /* border: 1px solid #000; */
+
+  text-align: center;
+  max-width: 150px;
+  /* max-height: 10px;  */
+  line-height: 15px;
+}
+.cell-container {
+  height: 100%;
+  overflow: hidden;
+  white-space: nowrap; /* Prevent text wrapping */
+  text-overflow: ellipsis; /* Add ellipsis for overflowing text */
+  display: block;
+  padding: 10px; /* Adjust padding as needed */
+  box-sizing: border-box; /* Ensure padding doesn't increase element size */
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.editbutton {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  /* height: 10px; */
+}
+.transbutton {
+  padding: 20px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.addbutt {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  right: 50px;
+  top: 40px;
+  width: 100px;
+  background-color: #181818;
+  padding: 5px;
+  border-radius: 10px;
+}
+.addbutt > img {
+  margin-left: 5px;
+}
+.tablebody {
+  height: 10%;
+  overflow-y: scroll;
+}
+.thsticky {
+  background-color: #0b0d10;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.bottombutt {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  right: 50px;
+  /* bottom: 40px; */
+  transform: translateY(-40px);
+  width: 120px;
+  background-color: #181818;
+  padding: 5px;
+  border-radius: 10px;
+}
+.bottombutt > img {
+  margin-left: 5px;
+}
+.aigen {
+  height: 35%;
+}
+.categories {
+  /* height: 40vh; */
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  overflow-y: scroll;
+}
+.categitems {
+  height: 100px;
+  width: 100px;
+  background-color: #181818;
+  border-radius: 20px;
+  margin: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  /* padding: 20px; */
+}
+.categitems > p {
+  margin: 5px;
+  font-size: 13px;
+}
+.categitems > img {
+  margin: 5px;
+  margin-top: 20px;
+}
+.deletecat {
+  position: absolute;
+  top: 10px; /* Align the image to the top */
+  right: 10px;
+}
+.categories::-webkit-scrollbar {
+  /* display: none; */
+  width: 5px;
+  background-color: #181818;
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb {
+  background: #333333; /* Color of the track */
+  border-radius: 5px;
+}
+.light{
+  color: #7e7d7d;
+}
+tspan{
+  fill: #7e7d7d;
+}
+/* --------------------------------------------------------------------------------------*/
+body{
+  
+}
+.login{
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  background-color: #0b0d10;
+}
+.loginform{
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #202224;
+  height: 500px;
+  width: 400px;
+  border-radius: 20px;
+  
+}
+.label{
+  margin: 5px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.label > img{
+  margin: 5px;
+}
+.loginhead{
+  font-size: 70px;
+}
+input{
+  border-radius: 5px;
+  /* margin: 5px; */
+  background-color: #181818;
+  padding: 4px;
+ padding-left: 10px;
+  height: 40px;
+}
+
+.submitbutton{
+  background-color: #5a82e1;
+  width: 280px;
+  padding: 8px;
+  border-radius: 10px;
+  margin-top: 10px;
+}
