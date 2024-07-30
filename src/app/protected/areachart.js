@@ -17,6 +17,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { memo } from "react";
 const chartData = [
   { month: "January", desktop: 186 },
   { month: "February", desktop: 305 },
@@ -36,7 +37,7 @@ const chartConfig = {
   },
 };
 
-export default function Areac(props) {
+const Areac= memo( function Areac(props) {
   console.log("inside areachart");
   // console.log(props.transtables);
   return (
@@ -108,4 +109,6 @@ export default function Areac(props) {
       </CardContent>
     </Card>
   );
-}
+});
+
+export default Areac;

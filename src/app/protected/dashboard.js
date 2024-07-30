@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Areac from "./areachart";
 import Piec from "./piechart";
-export default function Dashboard(props) {
+import { memo } from "react";
+const Dashboard = memo( function Dashboard(props) {
 // console.log(props.transtables);
   
 console.log("inside dashboard");
@@ -115,4 +116,6 @@ console.log("inside dashboard");
       </div>
     </div>
   );
-}
+});
+
+export default Dashboard;

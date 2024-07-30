@@ -24,7 +24,7 @@ const chartConfig = {
 
 };
 
-export default function Piec(props) {
+const Piec = React.memo( function Piec(props) {
   console.log("inside piechart");
   const [items, setItems] = useState([]);
 
@@ -94,3 +94,6 @@ export default function Piec(props) {
     </Card>
   );
 }
+);
+
+export default  Piec;
