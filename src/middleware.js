@@ -18,7 +18,7 @@ export async function middleware(request) {
     }
     const hasVerifiedToken = await verifyJwtToken(token);
     if (hasVerifiedToken) {
-      return NextResponse.redirect(new URL(`/`, url));
+      return NextResponse.redirect(new URL(`/protected`, url));
     } else {
       const response = NextResponse.next();
       response.cookies.delete("token");

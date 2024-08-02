@@ -49,8 +49,8 @@ export async function GET(req, res) {
   const str = `
   SELECT 
     t.date, 
-    SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END) AS credit,
-    SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END) AS debit
+    SUM(CASE WHEN t.type = 'Credit' THEN t.amount ELSE 0 END) AS Credit,
+    SUM(CASE WHEN t.type = 'Debit' THEN t.amount ELSE 0 END) AS Debit
   FROM transactions t
   JOIN users_transcation_link l ON t.transid = l.transid
   WHERE l.userid = ?

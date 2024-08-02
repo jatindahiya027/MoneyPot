@@ -235,6 +235,9 @@ td {
   flex-direction: row;
   justify-content: center;
   align-items: center;
+  white-space: nowrap; /* Prevents text from wrapping */
+  overflow: hidden; /* Hides overflowed text */
+  text-overflow: ellipsis; /* Adds ellipsis (...) */
 }
 
 .margin {
@@ -354,6 +357,19 @@ table {
 .addbutt > img {
   margin-left: 5px;
 }
+.closebutt {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  right: 50px;
+  top: 40px;
+  /* width: 100px; */
+  background-color: #181818;
+  padding: 10px;
+  border-radius: 10px;
+}
 .tablebody {
   height: 10%;
   overflow-y: scroll;
@@ -428,17 +444,16 @@ table {
   background: #333333; /* Color of the track */
   border-radius: 5px;
 }
-.light{
+.light {
   color: #7e7d7d;
 }
-tspan{
+tspan {
   fill: #7e7d7d;
 }
 /* --------------------------------------------------------------------------------------*/
-body{
-  
+body {
 }
-.login{
+.login {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -447,7 +462,7 @@ body{
   width: 100vw;
   background-color: #0b0d10;
 }
-.loginform{
+.loginform {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -456,35 +471,110 @@ body{
   height: 500px;
   width: 400px;
   border-radius: 20px;
-  
 }
-.label{
+.label {
   margin: 5px;
   display: flex;
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  width: 100%;
+  width: 280px;
+  background-color: #181818;
+  border-radius: 5px;
 }
-.label > img{
+.label > img {
   margin: 5px;
 }
-.loginhead{
+.loginhead {
   font-size: 70px;
+  margin-bottom: 40px;
 }
-input{
+input {
   border-radius: 5px;
   /* margin: 5px; */
   background-color: #181818;
   padding: 4px;
- padding-left: 10px;
+  padding-left: 10px;
   height: 40px;
+  width: 250px;
 }
 
-.submitbutton{
+.loginbutton {
   background-color: #5a82e1;
   width: 280px;
   padding: 8px;
   border-radius: 10px;
   margin-top: 10px;
+}
+.signupbutton {
+  background-color: #575757;
+  width: 280px;
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.or {
+  margin: 20px;
+}
+
+.form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #0b0d10;
+}
+.submitform {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #202224;
+  height: 550px;
+  width: 700px;
+  border-radius: 20px;
+}
+.submitlabel {
+  margin: 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 280px;
+  /* background-color: #181818; */
+  border-radius: 5px;
+}
+select {
+  border-radius: 5px;
+  /* margin: 5px; */
+  background-color: #181818;
+  padding: 4px;
+  padding-left: 10px;
+  height: 40px;
+  width: 250px;
+}
+textarea {
+  border-radius: 5px;
+
+  background-color: #181818;
+  padding: 4px;
+}
+.row {
+  flex-direction: row;
+}
+.pad {
+  margin: 10px;
+}
+.padd {
+  margin: 10px;
+}
+.padd > div {
+  margin-bottom: 20px;
+}
+.centerflex {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }

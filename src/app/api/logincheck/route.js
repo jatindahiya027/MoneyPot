@@ -1,7 +1,5 @@
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import { jwtVerify } from "jose";
-import { getJwtSecretKey } from "@/libs/auth"; // Adjust the path based on your project structure
 import { verifyJwtToken } from "@/libs/auth";
 // Initialize the database instance as null initially
 let db = null;
@@ -35,26 +33,7 @@ export async function GET(req, res) {
       status: 401,
     });
   }
- 
-
-  // Check if the database instance has been initialized
-  if (!db) {
-    // If the database instance is not initialized, open the database connection
-    db = await open({
-      filename: "./collection.db", // Specify the database file path
-      driver: sqlite3.Database, // Specify the database driver (sqlite3 in this case)
-    });
-  }
-  const userId = payload.id;
-  // console.log("hello");
-   const str = "SELECT t.* FROM transactions t JOIN users_transcation_link l ON t.transid = l.transid WHERE l.userid = ? ORDER BY t.date DESC";
-  //  const str = "SELECT t.* FROM transactions t JOIN users_transcation_link l ON t.transid = l.transid WHERE l.userid = ? AND t.date>= '2024-08-01' AND t.date<= '2024-08-30'  ORDER BY t.date DESC";
-  // const str = "SELECT * FROM users";
-  // const str = "SELECT * FROM users";
-  // Perform a database query to retrieve all items from the "items" table
-  const items = await db.all(str, [userId]);
-
-  // Return the items as a JSON response with status 200
+items = "logged in, redirecting user to dashboard";
   return new Response(JSON.stringify(items), {
     headers: { "Content-Type": "application/json" },
     status: 200,

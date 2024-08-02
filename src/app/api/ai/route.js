@@ -56,7 +56,7 @@ export async function GET(req, res) {
       driver: sqlite3.Database, // Specify the database driver (sqlite3 in this case)
     });
   }
-   const id = payload.id
+   const id = payload?payload.id:"no data";
    const str = "SELECT t.* FROM transactions t JOIN users_transcation_link l ON t.transid = l.transid WHERE l.userid='"+id+"'";
 
   const table = await db.all(str);

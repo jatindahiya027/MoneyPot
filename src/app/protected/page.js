@@ -6,8 +6,10 @@ import Image from "next/image";
 import Dashboard from "./dashboard";
 import Transfers from "./transfers";
 import Categories from "./categories";
+import { useRouter } from "next/navigation";
 const cookies = new Cookies();
 export default function Board() {
+  const router = useRouter();
   const [activeComponent, setActiveComponent] = useState("component1");
   const [items, setItems] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -15,14 +17,14 @@ export default function Board() {
   const [category, setCategory] = useState([]);
   const [catamount, setCatamount] = useState([]);
   const [creditdebit, setCreditdebit] = useState([]);
-console.log("inside dashboardpage");
+  console.log("inside dashboardpage");
   const endpoints = [
-    { url: '/api/get', setState: setItems },
-    { url: '/api/transactions', setState: setTransactions },
-    { url: '/api/category', setState: setCategory },
-    { url: '/api/cattotal', setState: setCatamount },
-    { url: '/api/creditdebit', setState: setCreditdebit },
-    { url: '/api/transtable', setState: setTranstable },
+    { url: "/api/get", setState: setItems },
+    { url: "/api/transactions", setState: setTransactions },
+    { url: "/api/category", setState: setCategory },
+    { url: "/api/cattotal", setState: setCatamount },
+    { url: "/api/creditdebit", setState: setCreditdebit },
+    { url: "/api/transtable", setState: setTranstable },
   ];
 
   useEffect(() => {
@@ -30,6 +32,8 @@ console.log("inside dashboardpage");
 
     if (!token) {
       console.error("No token found. Please login first.");
+      router.push("/");
+      router.refresh();
       return;
     }
 
@@ -38,26 +42,59 @@ console.log("inside dashboardpage");
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
       })
         .then((res) => res.json())
         .then((data) => setState(data))
-        .catch((error) => console.error(`Error fetching data from ${url}:`, error));
+        .catch((error) => {
+          console.error(`Error fetching data from ${url}:`, error);
+        });
     });
   }, []);
   const renderComponent = () => {
     switch (activeComponent) {
       case "component1":
-        return <Dashboard trans={transactions} cate={category} catamount={catamount} user={items} creditdebit={creditdebit} transtables={transtables}/>;
+        return (
+          <Dashboard
+            trans={transactions}
+            cate={category}
+            catamount={catamount}
+            user={items}
+            creditdebit={creditdebit}
+            transtables={transtables}
+            setActiveComponent={setActiveComponent}
+          />
+        );
       case "component2":
-        return <Transfers trans={transactions} cate={category}/>;
+        return (
+          <Transfers
+            trans={transactions}
+            cate={category}
+            settrans={setTransactions}
+            setcreditdebit={setCreditdebit}
+            setTranstable={setTranstable}
+            setCatamount={setCatamount}
+          />
+        );
       case "component3":
-        return <Categories  />;
+        return <Categories
+        cate={category}
+        />;
       // case 'component4':
       //   return <Login />;
       default:
-        return <Dashboard trans={transactions} cate={category} catamount={catamount} user={items} creditdebit={creditdebit} transtables={transtables}/>;
+        return (
+          <Dashboard
+            trans={transactions}
+            cate={category}
+            catamount={catamount}
+            user={items}
+            creditdebit={creditdebit}
+            transtables={transtables}
+            setCatamount={setCatamount}
+          />
+        );
     }
   };
   return (
@@ -69,7 +106,7 @@ console.log("inside dashboardpage");
           <p>{item.mail}</p>
           </div>
         ))} */}
-        {/* {
+      {/* {
            creditdebit.map((item, index) => (
             <div key={index}>
               <h2>{item.type}</h2>
@@ -81,7 +118,7 @@ console.log("inside dashboardpage");
         } */}
       <div className="types">
         <div className="heading">
-          <Image alt="image" src="/logo.png"  height={50} width={50} />
+          <Image alt="image" src="/logo.png" height={50} width={50} />
           <h1 className="headname">MoneyPot</h1>
         </div>
         <div className="spacemaker">
@@ -91,7 +128,7 @@ console.log("inside dashboardpage");
             }`}
             onClick={() => setActiveComponent("component1")}
           >
-            <Image alt="image" src="/dashboards.png"  height={20} width={20} />
+            <Image alt="image" src="/dashboards.png" height={20} width={20} />
             <p>Dashboard</p>
           </button>
           <button
@@ -100,9 +137,9 @@ console.log("inside dashboardpage");
             }`}
             onClick={() => setActiveComponent("component2")}
           >
-            <Image alt="image"
+            <Image
+              alt="image"
               src="/data-transfer.png"
-              
               height={20}
               width={20}
             />
@@ -114,7 +151,7 @@ console.log("inside dashboardpage");
             }`}
             onClick={() => setActiveComponent("component3")}
           >
-            <Image alt="image" src="/menu.png"  height={20} width={20} />
+            <Image alt="image" src="/menu.png" height={20} width={20} />
             <p>Categories</p>
           </button>
           <button
@@ -123,7 +160,7 @@ console.log("inside dashboardpage");
             }`}
             onClick={() => setActiveComponent("component4")}
           >
-            <Image alt="image" src="/setting.png"  height={20} width={20} />
+            <Image alt="image" src="/setting.png" height={20} width={20} />
             <p>Setting</p>
           </button>
         </div>

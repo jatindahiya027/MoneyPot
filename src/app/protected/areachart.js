@@ -91,14 +91,14 @@ const Areac= memo( function Areac(props) {
               </linearGradient>
             </defs>
             <Area
-              dataKey="credit"
+              dataKey="Credit"
               type="natural"
               fill="url(#fillDesktop)"
               fillOpacity={0.4}
               stroke="var(--color-desktop)"
             />
             <Area
-              dataKey="debit"
+              dataKey="Debit"
               type="natural"
               fill="url(#fillMobile)"
               fillOpacity={0.4}

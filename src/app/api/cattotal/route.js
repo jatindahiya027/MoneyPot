@@ -11,10 +11,13 @@ export async function GET(req, res) {
   // Extract the Authorization header
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: "Authorization header missing" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
-    });
+    return new Response(
+      JSON.stringify({ error: "Authorization header missing" }),
+      {
+        headers: { "Content-Type": "application/json" },
+        status: 401,
+      }
+    );
   }
 
   // Extract the token from the Authorization header
@@ -28,15 +31,15 @@ export async function GET(req, res) {
 
   try {
     // Verify the JWT token
-     payload = await verifyJwtToken(token);
+    payload = await verifyJwtToken(token);
   } catch (error) {
     return new Response(JSON.stringify({ error: "Invalid token" }), {
       headers: { "Content-Type": "application/json" },
       status: 401,
     });
   }
- 
-//  console.log("my name is: ",p.username);
+
+  //  console.log("my name is: ",p.username);
   // Check if the database instance has been initialized
   if (!db) {
     // If the database instance is not initialized, open the database connection
@@ -46,15 +49,15 @@ export async function GET(req, res) {
     });
   }
   // console.log("hello");
-   const str = `
+  const str = `
   SELECT t.category, SUM(t.amount) as amount, c.fill as fill
   FROM transactions t
   JOIN users_transcation_link l ON t.transid = l.transid
   JOIN categories c ON c.name = t.category
-  WHERE l.userid = ? AND t.type='debit'
+  WHERE l.userid = ? AND t.type='Debit'
   GROUP BY t.category
 `;
-  const items = await db.all(str,[payload.id]);
+  const items = await db.all(str, [payload.id]);
 
   // Return the items as a JSON response with status 200
   return new Response(JSON.stringify(items), {
