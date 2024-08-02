@@ -80,6 +80,8 @@ export default function Board() {
       case "component3":
         return <Categories
         cate={category}
+        setCategory ={setCategory}
+        setCatamount={setCatamount}
         />;
       // case 'component4':
       //   return <Login />;
