@@ -23,8 +23,8 @@ export async function POST(request) {
   const user = await db.get(checkUserStr, [body.email]);
   if(!user){
     const str = `
-    INSERT INTO users (name, age, mail, password) VALUES
-     (?, ? ,? ,?)
+    INSERT INTO users (name, age, mail, password, image) VALUES
+     (?, ? ,? ,?,"/profile.png")
     `;
     // await db.run(str, [body.username, body.age, body.email, body.password]);
     const result = await db.run(str, [body.username, body.age, body.email, body.password]);

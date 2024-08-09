@@ -578,3 +578,55 @@ textarea {
   justify-content: center;
   align-items: center;
 }
+
+.settingdiv{
+  width: 100%;
+  height: 84%;
+ display: flex;
+ flex-direction: row;
+}
+
+.settigndivheading{
+  padding-top: 10px;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: left;
+}
+
+.buttonflex{
+  display: flex;
+  flex-direction: row;
+  background-color: #181818;
+  padding: 10px;
+  border-radius: 10px;
+}
+.buttonflex > img{
+  margin-right: 10px;
+}
+
+.orr{
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.para{
+  margin-bottom: 10px;
+}
+.formsett{
+  width: 60vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+ 
+}
+.formsettt{
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+ 
+}

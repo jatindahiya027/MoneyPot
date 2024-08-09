@@ -48,10 +48,7 @@ export async function GET(req, res) {
   const userId = payload.id;
   // console.log("hello");
    const str = "SELECT t.* FROM transactions t JOIN users_transcation_link l ON t.transid = l.transid WHERE l.userid = ? ORDER BY t.date DESC";
-  //  const str = "SELECT t.* FROM transactions t JOIN users_transcation_link l ON t.transid = l.transid WHERE l.userid = ? AND t.date>= '2024-08-01' AND t.date<= '2024-08-30'  ORDER BY t.date DESC";
-  // const str = "SELECT * FROM users";
-  // const str = "SELECT * FROM users";
-  // Perform a database query to retrieve all items from the "items" table
+
   const items = await db.all(str, [userId]);
 
   // Return the items as a JSON response with status 200

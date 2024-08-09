@@ -5,7 +5,8 @@ const AUTH_PAGES = ["/"];
 
 const isAuthPages = (url) => AUTH_PAGES.some((page) => page.startsWith(url));
 
-export async function middleware(request) {
+export async function middleware(request, res, next) {
+  
   const { url, nextUrl, cookies } = request;
   const token = cookies.get("token")?.value;
   const isAuthPageRequested = isAuthPages(nextUrl.pathname);

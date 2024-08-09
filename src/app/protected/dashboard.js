@@ -2,10 +2,13 @@
 import Image from "next/image";
 import Areac from "./areachart";
 import Piec from "./piechart";
-import { memo } from "react";
+import { memo, useState, useDeferredValue } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "universal-cookie";
 const Dashboard = memo(function Dashboard(props) {
+ 
+ const deferredQuery = useDeferredValue(props.user[0]);
+ 
   // console.log(props.transtables);
   const router = useRouter();
 
@@ -78,14 +81,15 @@ const Dashboard = memo(function Dashboard(props) {
         <div className="profiledata">
           <Image
             alt="image"
-            src="/profile.png"
+            // src={deferredQuery?deferredQuery.image:"/profile.png"}
+            src={`http://127.0.0.1:3000/api/get-uploaded-file?file=${encodeURIComponent(deferredQuery?deferredQuery.image:"/profile.png")}`}
             height={100}
             width={100}
             className="profimg"
           />
           <p>{props.user[0] ? props.user[0]["name"] : " "}</p>
           <div className="edit">
-            <button className="profeditbutton">
+            <button className="profeditbutton" onClick={()=>props.setActiveComponent("component4")}>
               <Image alt="image" src="/edit.png" width={25} height={25} />
             </button>
             {/* <button className="profeditbutton">

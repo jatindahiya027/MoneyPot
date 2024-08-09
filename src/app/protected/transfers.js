@@ -15,8 +15,6 @@ export default function Transfers(props) {
   const [edittrans, setEdittrans] = useState();
   const [userdata, setUserdata] = useState();
   const [inputValue, setInputValue] = useState('hello');
-
-
   const[type, setType]= useState();
   const[category, setCategory]= useState();
   const[description, setDescription]= useState();

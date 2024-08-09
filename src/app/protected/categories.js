@@ -2,10 +2,11 @@ import Image from "next/image";
 import { useState } from "react";
 import Cookies from "universal-cookie";
 const cookies = new Cookies();
-export default function Categories({cate, setCategory,setCatamount}) {
+export default function Categories({cate, setCategory,setCatamount, setTransactions}) {
   const endpoints = [
     { url: "/api/category", setState: setCategory },
     { url: "/api/cattotal", setState: setCatamount },
+    { url: "/api/transactions", setState: setTransactions },
    
   ];
   const getdata = () => {

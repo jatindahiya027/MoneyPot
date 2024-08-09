@@ -35,21 +35,15 @@ export async function POST(req, res) {
       driver: sqlite3.Database,
     });
   }
-    const str0 = 'SELECT name FROM categories WHERE categoryid = ? '
-    const name = await db.get(str0, [body.id])
+  const id = payload.id;
     const str = `
-    DELETE FROM categories WHERE categoryid = ?
+    UPDATE users SET name= ? , age = ?,  mail = ?,  image = ? WHERE userid = ?
     `;
   //  console.log(body.type, body.category, body.description, body.date, body.amount);
-    const result = await db.run(str, [body.id])
+    const result = await db.run(str, [body.name, body.age, body.mail, body.img,id])
+    console.log("Inserted data into users table.");
     
-    const strr = `
-    DELETE FROM users_category_link WHERE userid = ? AND categorykid = ? 
-    `;
-    const result2 = await db.run(strr, [payload.id,body.id])
-// console.log(name.name);
-    const strrr = `UPDATE transactions SET category = 'Miscellaneous' WHERE transid IN ( SELECT transid FROM users_transcation_link WHERE userid = ? ) AND category = ?`;
-const result3 = await db.run(strrr, [payload.id,name.name])
+    
 
   return NextResponse.json({ success: true, user:"success" }, { status: 200, headers: { "content-type": "application/json" } });
 }

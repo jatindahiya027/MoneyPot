@@ -7,6 +7,7 @@ import Dashboard from "./dashboard";
 import Transfers from "./transfers";
 import Categories from "./categories";
 import { useRouter } from "next/navigation";
+import Setting from "./setting";
 const cookies = new Cookies();
 export default function Board() {
   const router = useRouter();
@@ -82,9 +83,13 @@ export default function Board() {
         cate={category}
         setCategory ={setCategory}
         setCatamount={setCatamount}
+        setTransactions={setTransactions}
         />;
-      // case 'component4':
-      //   return <Login />;
+      case 'component4':
+        return <Setting
+        user={items}
+        setUser={setItems}
+         />;
       default:
         return (
           <Dashboard

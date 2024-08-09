@@ -1,5 +1,4 @@
-version: '3.8'
-
+name: moneypot
 services:
   app:
     container_name: nextjs-app
