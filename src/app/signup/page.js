@@ -24,7 +24,7 @@ export default function Signup() {
       router.refresh();
     } else {
       if(user){
-       console.log(user);
+       //console.log(user);
        alert(user)
       }
 

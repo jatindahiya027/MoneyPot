@@ -215,7 +215,7 @@ td {
   padding-top: 1px;
   margin: 0;
   font-weight: 300;
-  font-size: 15px;
+  font-size: 14px;
 }
 .categ {
   display: flex;
@@ -629,4 +629,27 @@ textarea {
   justify-content: center;
   align-items: center;
  
+}
+.react-datepicker-wrapper{
+  margin: 10px;
+ /* max-width: 100px; */
+}
+.react-datepicker__input-container > input{
+  width: 115px;
+}
+
+.date{
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  width:400px
+}
+.date > p{
+  font-size: 12px;
+}
+.move{
+  margin-top: 20px;
+  margin-left: 15px;
+  font-size: 18px;
 }

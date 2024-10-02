@@ -40,14 +40,14 @@ export async function POST(req, res) {
     const str = `
     DELETE FROM categories WHERE categoryid = ?
     `;
-  //  console.log(body.type, body.category, body.description, body.date, body.amount);
+  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
     const result = await db.run(str, [body.id])
     
     const strr = `
     DELETE FROM users_category_link WHERE userid = ? AND categorykid = ? 
     `;
     const result2 = await db.run(strr, [payload.id,body.id])
-// console.log(name.name);
+// //console.log(name.name);
     const strrr = `UPDATE transactions SET category = 'Miscellaneous' WHERE transid IN ( SELECT transid FROM users_transcation_link WHERE userid = ? ) AND category = ?`;
 const result3 = await db.run(strrr, [payload.id,name.name])
 

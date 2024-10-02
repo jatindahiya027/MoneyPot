@@ -38,7 +38,7 @@ export async function POST(req, res) {
     const str = `
     DELETE FROM transactions WHERE transid = ?
     `;
-  //  console.log(body.type, body.category, body.description, body.date, body.amount);
+  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
     const result = await db.run(str, [body.id])
     
     const strr = `

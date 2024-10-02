@@ -5,7 +5,7 @@ import { writeFile } from "fs/promises";
 import fs from 'fs';
 
 const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-console.log(uploadDir);
+//console.log(uploadDir);
 // Ensure upload directory exists
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -46,7 +46,7 @@ const filename = file.name.replaceAll(" ", "_");
         // If there's no extension, just append the random suffix
         newFilename = `${filename}_${randomSuffix}`;
     }
-// console.log(newFilename);
+// //console.log(newFilename);
 
 try {
   // Write the file to the specified directory (public/assets) with the modified filename
@@ -59,7 +59,7 @@ try {
   return NextResponse.json({ Message: "/uploads/"+newFilename, status: 201 });
 } catch (error) {
   // If an error occurs during file writing, log the error and return a JSON response with a failure message and a 500 status code
-  console.log("Error occurred ", error);
+  //console.log("Error occurred ", error);
   return NextResponse.json({ Message: "Failed", status: 500 });
 }
 };

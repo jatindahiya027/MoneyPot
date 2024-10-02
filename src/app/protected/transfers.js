@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import Cookies from "universal-cookie";
 const cookies = new Cookies();
 export default function Transfers(props) {
-  console.log("inside transfer");
+  //console.log("inside transfer");
   const hasFetchedData = useRef(false);
   const [markdown, setMarkdown] = useState("fetching data");
   const [addbutton, setAddbutton] = useState(false);
@@ -49,13 +49,13 @@ export default function Transfers(props) {
     setDescription(userdata.description);
     setDate(userdata.date);
     setAmount(userdata.amount);
-    // console.log(userdata.transid)
+    // //console.log(userdata.transid)
    }
     }
     ,[userdata])
   useEffect(() => {
     async function gettransdata(token) {
-      //  console.log(description);
+      //  //console.log(description);
       const res = await fetch("/api/pertransdata", {
         method: "POST",
         headers: {
@@ -82,7 +82,7 @@ export default function Transfers(props) {
       }
       gettransdata(token);
       return()=>{
-        console.log(userdata);
+        //console.log(userdata);
   
       }
     }
@@ -92,7 +92,7 @@ export default function Transfers(props) {
 
     setEdittrans(id)
     setAddedit(true);
-    // console.log(userdata);
+    // //console.log(userdata);
   }
   const handleChange = (event) => {
     setSelectedType(event.target.value);
@@ -104,7 +104,7 @@ export default function Transfers(props) {
     }
 
     hasFetchedData.current = true;
-    // console.log("I am here");
+    // //console.log("I am here");
     const token = cookies.get("token");
 
     if (!token) {
@@ -167,7 +167,7 @@ export default function Transfers(props) {
     const date = formData.get("date");
     const amount = formData.get("amount");
 
-    //  console.log(description);
+    //  //console.log(description);
     const res = await fetch("/api/entertransaction", {
       method: "POST",
       headers: {
@@ -196,7 +196,7 @@ export default function Transfers(props) {
     const date = formData.get("date");
     const amount = formData.get("amount");
     const id = userdata.transid;
-    //  console.log(description);
+    //  //console.log(description);
     const res = await fetch("/api/edittransaction", {
       method: "POST",
       headers: {
@@ -225,7 +225,7 @@ export default function Transfers(props) {
     }
     const id = transid;
 
-    //  console.log(description);
+    //  //console.log(description);
     const res = await fetch("/api/deletetransaction", {
       method: "POST",
       headers: {

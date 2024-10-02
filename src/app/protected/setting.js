@@ -59,7 +59,7 @@ const Setting = memo(function Setting({ user, setUser }) {
     //   const imageUrl = URL.createObjectURL(e.target.files[0]);
     //   setImage(imageUrl);
     // }
-    // console.log(e.target.files[0]);
+    // //console.log(e.target.files[0]);
   };
 
   const handleSubmit = async (e) => {
@@ -80,16 +80,16 @@ const Setting = memo(function Setting({ user, setUser }) {
     // const password = formData.get("password");
 
     if (file != null) {
-      // console.log("file was there.")
+      // //console.log("file was there.")
       formData.append("file", file);
-      // console.log(file.name);
+      // //console.log(file.name);
       const res = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
 
       if (res.ok) {
-        console.log("Image uploaded successfully!");
+        //console.log("Image uploaded successfully!");
         const result = await res.json();
         setImage(result.Message);
         const img = result.Message;

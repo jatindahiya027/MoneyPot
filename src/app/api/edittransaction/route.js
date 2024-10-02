@@ -38,10 +38,10 @@ export async function POST(req, res) {
     const str = `
     UPDATE transactions SET type= ? , category = ?,  description = ?, date = ?,  amount = ? WHERE transid = ?
     `;
-  //  console.log(body.type, body.category, body.description, body.date, body.amount);
+  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
     const result = await db.run(str, [body.type, body.category, body.description, body.date, body.amount, body.id])
-    console.log("Inserted data into transactions table.");
-    console.log('Inserted row with ID:', result.lastID);
+    //console.log("Inserted data into transactions table.");
+    //console.log('Inserted row with ID:', result.lastID);
     
 
   return NextResponse.json({ success: true, user:"success" }, { status: 200, headers: { "content-type": "application/json" } });

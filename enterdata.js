@@ -7,7 +7,7 @@ const db = new sqlite3.Database(
     if (err) {
       return console.error(err.message);
     }
-    console.log("Connected to the SQLite database.");
+    //console.log("Connected to the SQLite database.");
   }
 );
 
@@ -21,7 +21,7 @@ db.serialize(() => {
   //     if (err) {
   //       return console.error(err.message);
   //     }
-  //     console.log("Inserted data into users table.");
+  //     //console.log("Inserted data into users table.");
   //   }
   // );
 
@@ -43,7 +43,7 @@ db.serialize(() => {
   //     if (err) {
   //       return console.error(err.message);
   //     }
-  //     console.log("Inserted data into transactions table.");
+  //     //console.log("Inserted data into transactions table.");
   //   }
   // );
 
@@ -56,7 +56,7 @@ db.serialize(() => {
   //     if (err) {
   //       return console.error(err.message);
   //     }
-  //     console.log("Inserted data into recurring table.");
+  //     //console.log("Inserted data into recurring table.");
   //   }
   // );
 
@@ -69,7 +69,7 @@ db.serialize(() => {
   //     if (err) {
   //       return console.error(err.message);
   //     }
-  //     console.log("Inserted data into budget table.");
+  //     //console.log("Inserted data into budget table.");
   //   }
   // );
 
@@ -94,7 +94,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Inserted data into categories table.");
+      //console.log("Inserted data into categories table.");
     }
   );
 
@@ -118,7 +118,7 @@ db.serialize(() => {
   //     if (err) {
   //       return console.error(err.message);
   //     }
-  //     console.log("Inserted data into users_transcation_link table.");
+  //     //console.log("Inserted data into users_transcation_link table.");
   //   }
   // );
 
@@ -130,7 +130,7 @@ db.serialize(() => {
   //     if (err) {
   //       return console.error(err.message);
   //     }
-  //     console.log("Inserted data into users_recurring_link table.");
+  //     //console.log("Inserted data into users_recurring_link table.");
   //   }
   // );
 
@@ -142,7 +142,7 @@ db.serialize(() => {
   //     if (err) {
   //       return console.error(err.message);
   //     }
-  //     console.log("Inserted data into users_budget_link table.");
+  //     //console.log("Inserted data into users_budget_link table.");
   //   }
   // );
 
@@ -157,7 +157,7 @@ db.serialize(() => {
   //     if (err) {
   //       return console.error(err.message);
   //     }
-  //     console.log("Inserted data into users_category_link table.");
+  //     //console.log("Inserted data into users_category_link table.");
   //   }
   // );
 });
@@ -166,5 +166,5 @@ db.close((err) => {
   if (err) {
     return console.error(err.message);
   }
-  console.log("Closed the database connection.");
+  //console.log("Closed the database connection.");
 });

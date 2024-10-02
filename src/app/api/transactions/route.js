@@ -46,7 +46,7 @@ export async function GET(req, res) {
     });
   }
   const userId = payload.id;
-  // console.log("hello");
+  // //console.log("hello");
    const str = "SELECT t.* FROM transactions t JOIN users_transcation_link l ON t.transid = l.transid WHERE l.userid = ? ORDER BY t.date DESC";
 
   const items = await db.all(str, [userId]);

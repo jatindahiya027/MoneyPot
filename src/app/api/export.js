@@ -21,7 +21,7 @@ const handler = (req, res) => {
             "amount": 67
         }
     ];
-console.log("hello world");
+//console.log("hello world");
     // Convert the array to CSV
     const csv = parse(data, { header: true }).data;
 

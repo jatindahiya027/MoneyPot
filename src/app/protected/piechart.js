@@ -25,7 +25,7 @@ const chartConfig = {
 };
 
 const Piec = React.memo( function Piec(props) {
-  console.log("inside piechart");
+  //console.log("inside piechart");
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ const Piec = React.memo( function Piec(props) {
     setItems(props.catamount)
   }, [props.catamount]);
   
-  // console.log(items);
+  // //console.log(items);
   const totalVisitors = React.useMemo(() => {
     return items.reduce((acc, curr) => acc + curr.amount, 0);
   }, [items]);
@@ -70,7 +70,7 @@ const Piec = React.memo( function Piec(props) {
                         <tspan
                           x={viewBox.cx}
                           y={viewBox.cy}
-                          className="fill-foreground text-3xl font-bold light"
+                          className="fill-foreground text-xl font-bold light"
                         >
                           {totalVisitors.toLocaleString()}
                         </tspan>
@@ -79,7 +79,7 @@ const Piec = React.memo( function Piec(props) {
                           y={(viewBox.cy || 0) + 24}
                           className="fill-muted-foreground light"
                         >
-                         Amount
+                         Debit Amount
                           
                         </tspan>
                       </text>

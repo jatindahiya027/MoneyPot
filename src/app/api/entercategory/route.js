@@ -39,10 +39,10 @@ export async function POST(req, res) {
     INSERT INTO categories (type, imgpath, name, fill ) VALUES
      (?, '/others.png'  ,?, ?)
     `;
-  //  console.log(body.type, body.category, body.description, body.date, body.amount);
+  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
     const result = await db.run(str, [body.type, body.name, body.fill])
-    console.log("Inserted data into categories table.");
-    console.log('Inserted row with ID:', result.lastID);
+    //console.log("Inserted data into categories table.");
+    //console.log('Inserted row with ID:', result.lastID);
     const strr = `
     INSERT INTO users_category_link (userid, categorykid ) VALUES
      (?, ?)

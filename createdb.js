@@ -8,7 +8,7 @@ const db = new sqlite3.Database(
     if (err) {
       return console.error(err.message);
     }
-    console.log("Connected to the SQlite database.");
+    //console.log("Connected to the SQlite database.");
   }
 );
 
@@ -29,7 +29,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created transcations table.");
+      //console.log("Created transcations table.");
     }
   );
   db.run(
@@ -41,7 +41,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created recurring table.");
+      //console.log("Created recurring table.");
     }
   );
   db.run(
@@ -55,7 +55,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created Budget table.");
+      //console.log("Created Budget table.");
     }
   );
   db.run(
@@ -71,7 +71,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created users table.");
+      //console.log("Created users table.");
     }
   );
   db.run(
@@ -86,7 +86,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created categories table.");
+      //console.log("Created categories table.");
     }
   );
 
@@ -102,7 +102,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created users_transcation_link table.");
+      //console.log("Created users_transcation_link table.");
     }
   );
   db.run(
@@ -114,7 +114,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created users_recurring_link table.");
+      //console.log("Created users_recurring_link table.");
     }
   );
   db.run(
@@ -126,7 +126,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created users_budget_link table.");
+      //console.log("Created users_budget_link table.");
     }
   );
   db.run(
@@ -138,7 +138,7 @@ db.serialize(() => {
       if (err) {
         return console.error(err.message);
       }
-      console.log("Created users_category_link table.");
+      //console.log("Created users_category_link table.");
     }
   );
 });

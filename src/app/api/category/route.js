@@ -36,7 +36,7 @@ export async function GET(req, res) {
     });
   }
  
-//  console.log("my name is: ",p.username);
+//  //console.log("my name is: ",p.username);
   // Check if the database instance has been initialized
   if (!db) {
     // If the database instance is not initialized, open the database connection
@@ -45,7 +45,7 @@ export async function GET(req, res) {
       driver: sqlite3.Database, // Specify the database driver (sqlite3 in this case)
     });
   }
-  // console.log("hello");
+  // //console.log("hello");
    const str = "SELECT c.* FROM categories c JOIN users_category_link l ON c.categoryid = l.categorykid WHERE l.userid='"+payload.id+"'";
   // const str = "SELECT * FROM users";
   // Perform a database query to retrieve all items from the "items" table

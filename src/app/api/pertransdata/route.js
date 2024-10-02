@@ -38,10 +38,10 @@ export async function POST(req, res) {
     const str = `
     SELECT * FROM transactions WHERE transid = ?
     `;
-  //  console.log(body.type, body.category, body.description, body.date, body.amount);
+  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
     const result = await db.all(str, [body.edittrans])
     
-  //  console.log(result);
+  //  //console.log(result);
 
   return NextResponse.json({result}, { status: 200, headers: { "content-type": "application/json" } });
 }

@@ -35,7 +35,7 @@ export default function Categories({cate, setCategory,setCatamount, setTransacti
     });
   };
   const [addcateg, setAddcateg] = useState(false);
-  console.log("inside categories");
+  //console.log("inside categories");
   const handleSubmit = async (event) => {
     event.preventDefault();
     const token = cookies.get("token");
@@ -43,9 +43,9 @@ export default function Categories({cate, setCategory,setCatamount, setTransacti
     const type = formData.get("type");
     const name = formData.get("name");
     const fill = formData.get("fill");
-console.log(type, name,fill);
+//console.log(type, name,fill);
 
-    //  console.log(description);
+    //  //console.log(description);
     const res = await fetch("/api/entercategory", {
       method: "POST",
       headers: {
@@ -73,7 +73,7 @@ console.log(type, name,fill);
     }
     const id = transid;
 
-    //  console.log(description);
+    //  //console.log(description);
     const res = await fetch("/api/deletecategory", {
       method: "POST",
       headers: {

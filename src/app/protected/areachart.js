@@ -38,8 +38,8 @@ const chartConfig = {
 };
 
 const Areac= memo( function Areac(props) {
-  console.log("inside areachart");
-  // console.log(props.transtables);
+  //console.log("inside areachart");
+  // //console.log(props.transtables);
   return (
     <Card className="chartbg">
       <CardContent>

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useDeferredValue } from "react";
 import Cookies from "universal-cookie";
 import React from "react";
 import Image from "next/image";
@@ -18,7 +18,7 @@ export default function Board() {
   const [category, setCategory] = useState([]);
   const [catamount, setCatamount] = useState([]);
   const [creditdebit, setCreditdebit] = useState([]);
-  console.log("inside dashboardpage");
+  //console.log("inside dashboardpage");
   const endpoints = [
     { url: "/api/get", setState: setItems },
     { url: "/api/transactions", setState: setTransactions },
@@ -53,6 +53,15 @@ export default function Board() {
         });
     });
   }, []);
+
+
+  // const deferreddate = useDeferredValue(transtables);
+  
+  
+
+ 
+
+  // //console.log(setEndDate+"***************"+Min);
   const renderComponent = () => {
     switch (activeComponent) {
       case "component1":
@@ -65,6 +74,14 @@ export default function Board() {
             creditdebit={creditdebit}
             transtables={transtables}
             setActiveComponent={setActiveComponent}
+            setTranstable={setTranstable}
+            setCatamount={setCatamount}
+            setCreditdebit={setCreditdebit}
+            // EndDate = {EndDate}
+            // StartDate = {StartDate}
+            // setStartDate ={setStartDate}
+            // setEndDate={setEndDate}
+
           />
         );
       case "component2":

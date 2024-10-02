@@ -39,10 +39,10 @@ export async function POST(req, res) {
     INSERT INTO transactions (type, category, description, date, amount ) VALUES
      (?, ? ,? ,?, ?)
     `;
-  //  console.log(body.type, body.category, body.description, body.date, body.amount);
+  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
     const result = await db.run(str, [body.type, body.category, body.description, body.date, body.amount])
-    console.log("Inserted data into transactions table.");
-    console.log('Inserted row with ID:', result.lastID);
+    //console.log("Inserted data into transactions table.");
+    //console.log('Inserted row with ID:', result.lastID);
     const strr = `
     INSERT INTO users_transcation_link (userid, transid ) VALUES
      (?, ?)

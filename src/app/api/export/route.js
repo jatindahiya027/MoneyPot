@@ -33,7 +33,7 @@ export async function GET(req, res) {
      status: 401,
    });
  }
-//  console.log(payload);
+//  //console.log(payload);
   if (!db) {
     // If the database instance is not initialized, open the database connection
     db = await open({
@@ -47,10 +47,10 @@ export async function GET(req, res) {
   try {
     // Convert the JSON array to CSV
     if (items.length === 0) {
-      console.log('No data found');
+      //console.log('No data found');
       items = [{"Data" : "No Data Found"}];
     } else {
-      console.log('Data found:', items);
+      //console.log('Data found:', items);
     }
     const csv = parse(items);
 

@@ -39,9 +39,9 @@ export async function POST(req, res) {
     const str = `
     UPDATE users SET name= ? , age = ?,  mail = ?,  image = ? WHERE userid = ?
     `;
-  //  console.log(body.type, body.category, body.description, body.date, body.amount);
+  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
     const result = await db.run(str, [body.name, body.age, body.mail, body.img,id])
-    console.log("Inserted data into users table.");
+    //console.log("Inserted data into users table.");
     
     
 
