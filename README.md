@@ -56,7 +56,7 @@
 3. Create db file
     ```bash
     node createdb.js
-    node enterdata,js
+    node enterdata.js
     ```
 4. Run the development server:
    ```bash
