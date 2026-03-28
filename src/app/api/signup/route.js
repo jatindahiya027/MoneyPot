@@ -1,20 +1,13 @@
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
+import { getDb } from "@/libs/db";
 import { SignJWT } from "jose";
 import { NextResponse } from "next/server";
 import { getJwtSecretKey } from "@/libs/auth";
 
-let db = null;
 
 export async function POST(request) {
   const body = await request.json();
 
-  if (!db) {
-    db = await open({
-      filename: "./collection.db",
-      driver: sqlite3.Database,
-    });
-  }
+  const db = await getDb();
   // Check if the user exists and get their details
   const checkUserStr = `
     SELECT * FROM users WHERE mail = ?

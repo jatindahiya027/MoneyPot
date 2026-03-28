@@ -1,8 +1,5 @@
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 import { verifyJwtToken } from "@/libs/auth";
 // Initialize the database instance as null initially
-let db = null;
 let payload = null;
 // Define the GET request handler function
 export async function GET(req, res) {

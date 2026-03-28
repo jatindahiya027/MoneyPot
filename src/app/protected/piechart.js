@@ -1,99 +1,77 @@
 "use client";
-import { useState, useEffect } from "react";
-import * as React from "react";
-import { TrendingUp } from "lucide-react";
-import { Label, Pie, PieChart } from "recharts";
+import { memo, useMemo } from "react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+const COLORS = [
+  "#5a82e1","#4ade80","#f87171","#fbbf24","#a78bfa",
+  "#34d399","#fb7185","#60a5fa","#f472b6","#2dd4bf",
+];
 
-
-const chartConfig = {
-
+const CustomTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0];
+  return (
+    <div style={{
+      background:"var(--bg-secondary)", border:"1px solid var(--border)",
+      borderRadius:10, padding:"8px 12px", fontSize:12,
+    }}>
+      <p style={{ fontWeight:600, marginBottom:2 }}>{d.name}</p>
+      <p style={{ color:"var(--danger)" }}>₹{Number(d.value||0).toFixed(2)}</p>
+    </div>
+  );
 };
 
-const Piec = React.memo( function Piec(props) {
-  //console.log("inside piechart");
-  const [items, setItems] = useState([]);
+const Piec = memo(function Piec({ catamount }) {
+  const items = useMemo(() => {
+    if (!catamount?.length) return [];
+    return catamount
+      .filter(c => c.amount > 0)
+      .map((c, i) => ({ ...c, fill: COLORS[i % COLORS.length] }));
+  }, [catamount]);
 
-  useEffect(() => {
- 
-    setItems(props.catamount)
-  }, [props.catamount]);
-  
-  // //console.log(items);
-  const totalVisitors = React.useMemo(() => {
-    return items.reduce((acc, curr) => acc + curr.amount, 0);
-  }, [items]);
+  const total = useMemo(() => items.reduce((s, c) => s + c.amount, 0), [items]);
+
+  if (!items.length) {
+    return (
+      <div style={{ height:160, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--text-muted)", fontSize:13 }}>
+        No category data
+      </div>
+    );
+  }
+
+  const formatMoney = (n) => {
+    if (n >= 100000) return "₹" + (n/100000).toFixed(1) + "L";
+    if (n >= 1000) return "₹" + (n/1000).toFixed(1) + "K";
+    return "₹" + n.toFixed(0);
+  };
 
   return (
-    <Card className="chartbg">
-      <CardContent className="p-0">
-        <ChartContainer
-          config={chartConfig}
-          className="mx-auto aspect-square max-h-[250px]"
-        >
-          <PieChart>
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent hideLabel />}
-            />
-            <Pie
-              data={items}
-              dataKey="amount"
-              nameKey="category"
-              innerRadius={60}
-              strokeWidth={5}
-            >
-              <Label
-                content={({ viewBox }) => {
-                  if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                    return (
-                      <text
-                        x={viewBox.cx}
-                        y={viewBox.cy}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                      >
-                        <tspan
-                          x={viewBox.cx}
-                          y={viewBox.cy}
-                          className="fill-foreground text-xl font-bold light"
-                        >
-                          {totalVisitors.toLocaleString()}
-                        </tspan>
-                        <tspan
-                          x={viewBox.cx}
-                          y={(viewBox.cy || 0) + 24}
-                          className="fill-muted-foreground light"
-                        >
-                         Debit Amount
-                          
-                        </tspan>
-                      </text>
-                    );
-                  }
-                }}
-              />
-            </Pie>
-          </PieChart>
-        </ChartContainer>
-      </CardContent>
-    </Card>
+    <div>
+      <ResponsiveContainer width="100%" height={140}>
+        <PieChart>
+          <Pie
+            data={items} dataKey="amount" nameKey="category"
+            cx="50%" cy="50%" innerRadius={42} outerRadius={62}
+            strokeWidth={2} stroke="var(--bg-card)"
+          >
+            {items.map((entry, i) => (
+              <Cell key={i} fill={entry.fill} />
+            ))}
+          </Pie>
+          <Tooltip content={<CustomTooltip />} />
+        </PieChart>
+      </ResponsiveContainer>
+      {/* Legend — single scrollable row */}
+      <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 8px", marginTop:6 }}>
+        {items.slice(0,6).map((item, i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:4, fontSize:9 }}>
+            <div style={{ width:7, height:7, borderRadius:2, background:item.fill, flexShrink:0 }} />
+            <span style={{ color:"#999", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:52 }}>{item.category}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
-}
-);
+});
 
-export default  Piec;
+export default Piec;

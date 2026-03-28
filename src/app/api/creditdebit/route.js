@@ -1,123 +1,58 @@
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
-import { jwtVerify } from "jose";
-import { getJwtSecretKey } from "@/libs/auth"; // Adjust the path based on your project structure
+import { getDb } from "@/libs/db";
 import { verifyJwtToken } from "@/libs/auth";
-import { format } from 'date-fns';
-// Initialize the database instance as null initially
-let db = null;
-let payload = null;
-// Define the GET request handler function
-export async function GET(req, res) {
-  // Extract the Authorization header
+
+async function authenticate(req) {
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: "Authorization header missing" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
-    });
-  }
-
-  // Extract the token from the Authorization header
+  if (!authHeader) return null;
   const token = authHeader.split(" ")[1];
-  if (!token) {
-    return new Response(JSON.stringify({ error: "Token missing" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
-    });
-  }
+  if (!token) return null;
+  try { return await verifyJwtToken(token); } catch { return null; }
+}
 
-  try {
-    // Verify the JWT token
-     payload = await verifyJwtToken(token);
-  } catch (error) {
-    return new Response(JSON.stringify({ error: "Invalid token" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
-    });
-  }
- 
-//  //console.log("my name is: ",p.username);
-  // Check if the database instance has been initialized
-  if (!db) {
-    // If the database instance is not initialized, open the database connection
-    db = await open({
-      filename: "./collection.db", // Specify the database file path
-      driver: sqlite3.Database, // Specify the database driver (sqlite3 in this case)
-    });
-  }
-  // //console.log("hello");
-   const str = `
-  SELECT t.type, SUM(t.amount) as amount
-  FROM transactions t
-  JOIN users_transcation_link l ON t.transid = l.transid
-  WHERE l.userid = ?
-  GROUP BY t.type
-`;
-  const items = await db.all(str,[payload.id]);
+const UNAUTH = new Response(JSON.stringify({ error: "Unauthorized" }), {
+  status: 401,
+  headers: { "Content-Type": "application/json" },
+});
 
-  // Return the items as a JSON response with status 200
+// GET — all-time totals (no date filter)
+export async function GET(req) {
+  const payload = await authenticate(req);
+  if (!payload) return UNAUTH;
+  const db = await getDb();
+  const items = await db.all(`
+    SELECT t.type, SUM(t.amount) AS amount
+    FROM transactions t
+    JOIN users_transcation_link l ON t.transid = l.transid
+    WHERE l.userid = ?
+    GROUP BY t.type
+  `, [payload.id]);
   return new Response(JSON.stringify(items), {
-    headers: { "Content-Type": "application/json" },
-    status: 200,
+    headers: { "Content-Type": "application/json" }, status: 200,
   });
 }
 
-export async function POST(req, res) {
-  // Extract the Authorization header
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: "Authorization header missing" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
-    });
-  }
+// POST — totals filtered by date range
+// Body: { StartDate: "YYYY-MM-DD", EndDate: "YYYY-MM-DD" }
+export async function POST(req) {
+  const payload = await authenticate(req);
+  if (!payload) return UNAUTH;
+  const db = await getDb();
+  const { StartDate, EndDate } = await req.json();
 
-  // Extract the token from the Authorization header
-  const token = authHeader.split(" ")[1];
-  if (!token) {
-    return new Response(JSON.stringify({ error: "Token missing" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
-    });
-  }
+  // Both values must already be YYYY-MM-DD coming from the frontend.
+  // Validate format and fall back to safe defaults if anything is malformed.
+  const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const startDate = ISO_RE.test(StartDate) ? StartDate : "2000-01-01";
+  const endDate   = ISO_RE.test(EndDate)   ? EndDate   : "2099-12-31";
 
-  try {
-    // Verify the JWT token
-     payload = await verifyJwtToken(token);
-  } catch (error) {
-    return new Response(JSON.stringify({ error: "Invalid token" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
-    });
-  }
- 
-//  //console.log("my name is: ",p.username);
-  // Check if the database instance has been initialized
-  if (!db) {
-    // If the database instance is not initialized, open the database connection
-    db = await open({
-      filename: "./collection.db", // Specify the database file path
-      driver: sqlite3.Database, // Specify the database driver (sqlite3 in this case)
-    });
-  }
-  // //console.log("hello");
-  const body = await req.json();
-  const { StartDate, EndDate } = body;
-  const StartDatee = format(new Date(StartDate), 'yyyy-MM-dd');
- const EndDatee = format(new Date(EndDate), 'yyyy-MM-dd');
-   const str = `
-  SELECT t.type, SUM(t.amount) as amount
-  FROM transactions t
-  JOIN users_transcation_link l ON t.transid = l.transid
-  WHERE l.userid = ? AND t.date BETWEEN ? AND ?
-  GROUP BY t.type
-`;
-  const items = await db.all(str,[payload.id, StartDatee, EndDatee]);
-
-  // Return the items as a JSON response with status 200
+  const items = await db.all(`
+    SELECT t.type, SUM(t.amount) AS amount
+    FROM transactions t
+    JOIN users_transcation_link l ON t.transid = l.transid
+    WHERE l.userid = ? AND t.date BETWEEN ? AND ?
+    GROUP BY t.type
+  `, [payload.id, startDate, endDate]);
   return new Response(JSON.stringify(items), {
-    headers: { "Content-Type": "application/json" },
-    status: 200,
+    headers: { "Content-Type": "application/json" }, status: 200,
   });
 }

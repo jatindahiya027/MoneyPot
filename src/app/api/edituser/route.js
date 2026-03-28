@@ -1,11 +1,9 @@
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
+import { getDb } from "@/libs/db";
 import { jwtVerify } from "jose";
 import { getJwtSecretKey } from "@/libs/auth"; // Adjust the path based on your project structure
 import { verifyJwtToken } from "@/libs/auth";
 import { NextResponse } from "next/server";
 // Initialize the database instance as null initially
-let db = null;
 let payload = null;
 
 
@@ -29,12 +27,7 @@ export async function POST(req, res) {
     return NextResponse.json({ success: false,user:"Invalid token" }, { status: 401 });
   }
 
-  if (!db) {
-    db = await open({
-      filename: "./collection.db",
-      driver: sqlite3.Database,
-    });
-  }
+  const db = await getDb();
   const id = payload.id;
     const str = `
     UPDATE users SET name= ? , age = ?,  mail = ?,  image = ? WHERE userid = ?

@@ -1,23 +1,48 @@
-# Use the official Node.js image.
-FROM node:18.20-alpine
+# Stage 1: Base image
+FROM node:20-alpine AS base
 
-# Set the working directory.
+# Stage 2: Install dependencies
+FROM base AS deps
+# Install build tools required for sqlite3 and sharp on Alpine
+RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
-# Copy package.json and package-lock.json.
-COPY package*.json ./
+COPY package.json package-lock.json* ./
+# If you use npm, keep npm ci. If using yarn, use yarn install --frozen-lockfile
+RUN npm ci
 
-# Install dependencies.
-RUN npm install --only=production
-
-# Copy the rest of the application code.
+# Stage 3: Build the application
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build the application.
+# This command generates the .next/standalone directory
 RUN npm run build
 
-# Expose the port the app runs on.
+# Stage 4: Production runner
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+# Next.js standalone mode ignores the port in package.json and listens on 3000 by default
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Security: Run as a non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy the public directory
+COPY --from=builder /app/public ./public
+
+# Copy the standalone build and static files, setting permissions
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
 EXPOSE 3000
 
-# Start the application.
-CMD ["npm", "start"]
+# Standalone mode runs via server.js, not the package.json scripts
+CMD ["node", "server.js"]

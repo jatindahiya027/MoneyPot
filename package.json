@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3031",
     "lint": "next lint"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
     "lucide-react": "^0.416.0",
     "mime": "^4.0.4",
     "next": "14.2.5",
+    "pdfjs-dist": "^3.11.174",
     "react": "^18",
     "react-datepicker": "^7.3.0",
     "react-dom": "^18",
@@ -30,7 +31,8 @@
     "sqlite3": "^5.1.7",
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7",
-    "universal-cookie": "^7.2.0"
+    "universal-cookie": "^7.2.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "eslint": "^8",
