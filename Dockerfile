@@ -36,9 +36,15 @@ RUN adduser --system --uid 1001 nextjs
 # Copy the public directory
 COPY --from=builder /app/public ./public
 
-# Copy the standalone build and static files, setting permissions
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy the standalone build and static files
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+# Copy the SQLite DB
+COPY --from=builder /app/collection.db ./collection.db
+
+# Give full permissions to everything
+RUN chmod -R 777 /app
 
 USER nextjs
 

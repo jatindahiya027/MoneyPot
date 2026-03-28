@@ -143,7 +143,7 @@ Open [http://localhost:3000](http://localhost:3000), click **Create account**, a
 ### Using Docker Compose (recommended)
 
 ```bash
-docker-compose up -d
+docker-compose up -d --build
 ```
 
 The app will be available at **http://localhost:3001**.
