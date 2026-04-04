@@ -1,10 +1,8 @@
 "use client";
+import { getToken, clearToken } from "@/libs/clientToken";
 import { memo, useState, useDeferredValue, useEffect, useCallback } from "react";
 import Image from "next/image";
-import Cookies from "universal-cookie";
 import { useRouter } from "next/navigation";
-
-const cookies = new Cookies();
 
 const LS_URL   = "ollama_url";
 const LS_MODEL = "ollama_model";
@@ -67,7 +65,7 @@ const Setting = memo(function Setting({ user, setUser }) {
   };
 
   const getdata = () => {
-    const token = cookies.get("token");
+    const token = getToken();
     if (!token) { router.push("/"); return; }
     fetch("/api/get", { method: "GET", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setUser).catch(console.error);
@@ -84,7 +82,7 @@ const Setting = memo(function Setting({ user, setUser }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const token = cookies.get("token");
+    const token = getToken();
     if (!token) { router.push("/"); return; }
     setSaving(true);
     try {
@@ -112,7 +110,7 @@ const Setting = memo(function Setting({ user, setUser }) {
   };
 
   const downloadCSV = async () => {
-    const token = cookies.get("token");
+    const token = getToken();
     if (!token) { router.push("/"); return; }
     try {
       const response = await fetch("/api/export", {

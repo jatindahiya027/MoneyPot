@@ -32,7 +32,7 @@ const ChartContainer = React.forwardRef(({ id, className, children, config, ...p
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
+          "flex aspect-auto justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
           className
         )}
         {...props}>
@@ -114,7 +114,7 @@ const ChartTooltipContent = React.forwardRef((
 
     if (labelFormatter) {
       return (
-        (<div className={cn("font-medium", labelClassName)}>
+        (<div className={cn("font-semibold mb-1", labelClassName)} style={{ color: "var(--text-primary)" }}>
           {labelFormatter(value, payload)}
         </div>)
       );
@@ -124,7 +124,7 @@ const ChartTooltipContent = React.forwardRef((
       return null
     }
 
-    return <div className={cn("font-medium", labelClassName)}>{value}</div>;
+    return <div className={cn("font-semibold mb-1", labelClassName)} style={{ color: "var(--text-primary)" }}>{value}</div>;
   }, [
     label,
     labelFormatter,
@@ -145,9 +145,15 @@ const ChartTooltipContent = React.forwardRef((
     (<div
       ref={ref}
       className={cn(
-        "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-slate-200 border-slate-200/50 bg-white px-2.5 py-1.5 text-xs shadow-xl dark:border-slate-800 dark:border-slate-800/50 dark:bg-slate-950",
+        "grid min-w-[8rem] items-start gap-1.5 rounded-xl px-3 py-2 text-xs shadow-xl",
         className
-      )}>
+      )}
+      style={{
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        color: "var(--text-primary)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+      }}>
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
         {payload.map((item, index) => {
@@ -193,13 +199,13 @@ const ChartTooltipContent = React.forwardRef((
                     )}>
                     <div className="grid gap-1.5">
                       {nestLabel ? tooltipLabel : null}
-                      <span className="text-slate-500 dark:text-slate-400">
+                      <span className="" style={{ color: "var(--text-muted)" }}>
                         {itemConfig?.label || item.name}
                       </span>
                     </div>
                     {item.value && (
                       <span
-                        className="font-mono font-medium tabular-nums text-slate-950 dark:text-slate-50">
+                        className="font-mono font-medium tabular-nums" style={{ color: "var(--text-primary)" }}>
                         {item.value.toLocaleString()}
                       </span>
                     )}

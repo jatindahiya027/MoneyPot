@@ -1,48 +1,45 @@
 import { getDb } from "@/libs/db";
-import { jwtVerify } from "jose";
-import { getJwtSecretKey } from "@/libs/auth"; // Adjust the path based on your project structure
 import { verifyJwtToken } from "@/libs/auth";
 import { NextResponse } from "next/server";
-// Initialize the database instance as null initially
-let payload = null;
 
+async function auth(req) {
+  const h = req.headers.get("Authorization");
+  if (!h) return null;
+  const t = h.split(" ")[1];
+  return t ? await verifyJwtToken(t) : null;
+}
 
-export async function POST(req, res) {
-  const body = await req.json();
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    return NextResponse.json({ success: false,user:"authorization header missing" }, { status: 401 });
-  }
+export async function POST(req) {
+  const payload = await auth(req);
+  if (!payload) return NextResponse.json({ success: false }, { status: 401 });
 
-  // Extract the token from the Authorization header
-  const token = authHeader.split(" ")[1];
-  if (!token) {
-    return NextResponse.json({ success: false,user:"token missing" }, { status: 401 });
-  }
-
-  try {
-    // Verify the JWT token
-     payload = await verifyJwtToken(token);
-  } catch (error) {
-    return NextResponse.json({ success: false,user:"Invalid token" }, { status: 401 });
-  }
+  const { id } = await req.json();
+  if (!id) return NextResponse.json({ success: false }, { status: 400 });
 
   const db = await getDb();
-    const str0 = 'SELECT name FROM categories WHERE categoryid = ? '
-    const name = await db.get(str0, [body.id])
-    const str = `
-    DELETE FROM categories WHERE categoryid = ?
-    `;
-  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
-    const result = await db.run(str, [body.id])
-    
-    const strr = `
-    DELETE FROM users_category_link WHERE userid = ? AND categorykid = ? 
-    `;
-    const result2 = await db.run(strr, [payload.id,body.id])
-// //console.log(name.name);
-    const strrr = `UPDATE transactions SET category = 'Miscellaneous' WHERE transid IN ( SELECT transid FROM users_transcation_link WHERE userid = ? ) AND category = ?`;
-const result3 = await db.run(strrr, [payload.id,name.name])
 
-  return NextResponse.json({ success: true, user:"success" }, { status: 200, headers: { "content-type": "application/json" } });
+  // Verify this category belongs to the user before deleting
+  const link = await db.get(
+    "SELECT 1 FROM users_category_link WHERE userid=? AND categorykid=?",
+    [payload.id, id]
+  );
+  if (!link) return NextResponse.json({ success: false }, { status: 404 });
+
+  const cat = await db.get("SELECT name FROM categories WHERE categoryid=?", [id]);
+  if (!cat) return NextResponse.json({ success: false }, { status: 404 });
+
+  await db.run("DELETE FROM categories WHERE categoryid=?", [id]);
+  await db.run(
+    "DELETE FROM users_category_link WHERE userid=? AND categorykid=?",
+    [payload.id, id]
+  );
+  // Reassign orphaned transactions to Miscellaneous
+  await db.run(
+    `UPDATE transactions SET category='Miscellaneous'
+     WHERE transid IN (SELECT transid FROM users_transcation_link WHERE userid=?)
+     AND category=?`,
+    [payload.id, cat.name]
+  );
+
+  return NextResponse.json({ success: true });
 }

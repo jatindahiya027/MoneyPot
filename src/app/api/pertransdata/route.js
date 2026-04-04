@@ -1,40 +1,34 @@
 import { getDb } from "@/libs/db";
-import { jwtVerify } from "jose";
-import { getJwtSecretKey } from "@/libs/auth"; // Adjust the path based on your project structure
 import { verifyJwtToken } from "@/libs/auth";
 import { NextResponse } from "next/server";
-// Initialize the database instance as null initially
-let payload = null;
 
+async function auth(req) {
+  const h = req.headers.get("Authorization");
+  if (!h) return null;
+  const t = h.split(" ")[1];
+  return t ? await verifyJwtToken(t) : null;
+}
 
-export async function POST(req, res) {
-  const body = await req.json();
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    return NextResponse.json({ success: false,user:"authorization header missing" }, { status: 401 });
-  }
+export async function POST(req) {
+  const payload = await auth(req);
+  if (!payload) return NextResponse.json({ success: false }, { status: 401 });
 
-  // Extract the token from the Authorization header
-  const token = authHeader.split(" ")[1];
-  if (!token) {
-    return NextResponse.json({ success: false,user:"token missing" }, { status: 401 });
-  }
-
-  try {
-    // Verify the JWT token
-     payload = await verifyJwtToken(token);
-  } catch (error) {
-    return NextResponse.json({ success: false,user:"Invalid token" }, { status: 401 });
-  }
+  const { edittrans } = await req.json();
+  if (!edittrans) return NextResponse.json({ success: false }, { status: 400 });
 
   const db = await getDb();
-    const str = `
-    SELECT * FROM transactions WHERE transid = ?
-    `;
-  //  //console.log(body.type, body.category, body.description, body.date, body.amount);
-    const result = await db.all(str, [body.edittrans])
-    
-  //  //console.log(result);
 
-  return NextResponse.json({result}, { status: 200, headers: { "content-type": "application/json" } });
+  // Verify this transaction belongs to the requesting user before returning it
+  const link = await db.get(
+    "SELECT 1 FROM users_transcation_link WHERE userid=? AND transid=?",
+    [payload.id, edittrans]
+  );
+  if (!link) return NextResponse.json({ success: false }, { status: 404 });
+
+  const result = await db.all(
+    "SELECT * FROM transactions WHERE transid=?",
+    [edittrans]
+  );
+
+  return NextResponse.json({ result });
 }

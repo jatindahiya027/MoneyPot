@@ -1,14 +1,15 @@
 "use client";
+import { getToken, clearToken } from "@/libs/clientToken";
 import { useState, useEffect } from "react";
-import Cookies from "universal-cookie";
 import Image from "next/image";
 import Dashboard from "./dashboard";
 import Transfers from "./transfers";
 import Categories from "./categories";
 import { useRouter } from "next/navigation";
 import Setting from "./setting";
-
-const cookies = new Cookies();
+import BudgetPlanner from "./budget";
+import Analysis from "./analysis";
+import MonthTrend from "./monthtrend";
 
 // Nav icon SVGs
 const Icons = {
@@ -34,13 +35,27 @@ const Icons = {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
     </svg>
   ),
+  budget: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+    </svg>
+  ),
+
+  trends: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+  ),
 };
 
 const navItems = [
-  { key: "component1", icon: "/dashboards.png", label: "Dashboard",  svgIcon: Icons.dashboard  },
-  { key: "component2", icon: "/data-transfer.png", label: "Transfers", svgIcon: Icons.transfers },
-  { key: "component3", icon: "/menu.png",       label: "Categories", svgIcon: Icons.categories },
-  { key: "component4", icon: "/setting.png",    label: "Settings",   svgIcon: Icons.settings   },
+  { key: "component1", icon: "/dashboards.png",   label: "Dashboard",  svgIcon: Icons.dashboard  },
+  { key: "component2", icon: "/data-transfer.png", label: "Transfers",  svgIcon: Icons.transfers  },
+  { key: "component3", icon: "/menu.png",          label: "Categories", svgIcon: Icons.categories },
+  { key: "component5", icon: "/calculator.png",    label: "Budget",     svgIcon: Icons.budget     },
+  { key: "component6", icon: "/bar-chart.png",     label: "Analysis",   svgIcon: Icons.trends     },
+  { key: "component7", icon: "/bar-chart.png",     label: "Trends",     svgIcon: Icons.trends     },
+  { key: "component4", icon: "/setting.png",       label: "Settings",   svgIcon: Icons.settings   },
 ];
 
 function toDateStr(val) {
@@ -65,6 +80,7 @@ export default function Board() {
   const [category, setCategory] = useState([]);
   const [catamount, setCatamount] = useState([]);
   const [creditdebit, setCreditdebit] = useState([]);
+  const [banktrend, setBanktrend] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // ── Date range lifted here so it survives tab switches
@@ -74,7 +90,7 @@ export default function Board() {
   const [endDate, setEndDate] = useState("2099-12-31");
 
   useEffect(() => {
-    const token = cookies.get("token");
+    const token = getToken();
     if (!token) { router.push("/"); return; }
     const endpoints = [
       { url: "/api/get",          setState: setItems        },
@@ -82,6 +98,7 @@ export default function Board() {
       { url: "/api/category",     setState: setCategory     },
       { url: "/api/cattotal",     setState: setCatamount    },
       { url: "/api/creditdebit",  setState: setCreditdebit  },
+      { url: "/api/banktrend",     setState: setBanktrend    },
       { url: "/api/transtable",   setState: setTranstable   },
     ];
     endpoints.forEach(({ url, setState }) => {
@@ -103,7 +120,8 @@ export default function Board() {
           creditdebit={creditdebit} transtables={transtables} setActiveComponent={setActiveComponent}
           setTranstable={setTranstable} setCatamount={setCatamount} setCreditdebit={setCreditdebit}
           startDate={startDate} setStartDate={setStartDate}
-          endDate={endDate} setEndDate={setEndDate} />;
+          endDate={endDate} setEndDate={setEndDate}
+          banktrend={banktrend} setBanktrend={setBanktrend} />
       case "component2":
         return <Transfers trans={transactions} cate={category} settrans={setTransactions}
           setcreditdebit={setCreditdebit} setTranstable={setTranstable} setCatamount={setCatamount} />;
@@ -112,6 +130,12 @@ export default function Board() {
           setCatamount={setCatamount} setTransactions={setTransactions} />;
       case "component4":
         return <Setting user={items} setUser={setItems} />;
+      case "component5":
+        return <BudgetPlanner categories={category} />;
+      case "component6":
+        return <Analysis />;
+      case "component7":
+        return <MonthTrend />;
       default:
         return null;
     }

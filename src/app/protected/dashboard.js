@@ -1,13 +1,10 @@
 "use client";
+import { getToken, clearToken } from "@/libs/clientToken";
 import Image from "next/image";
 import Areac from "./areachart";
 import Piec from "./piechart";
 import { memo, useDeferredValue, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Cookies from "universal-cookie";
-
-const cookies = new Cookies();
-
 // ── Robust date → YYYY-MM-DD string (never passes Date object to API)
 function toDateStr(val) {
   if (!val) return "";
@@ -38,10 +35,11 @@ const Dashboard = memo(function Dashboard(props) {
   const deferredQuery = useDeferredValue(props.user[0]);
   const router = useRouter();
 
-  const handleClearCookies = () => {
-    const c = new Cookies();
-    const all = c.getAll();
-    for (const k in all) c.remove(k, { path: "/" });
+  const handleClearCookies = async () => {
+    // Clear client-side token from localStorage
+    clearToken();
+    // Ask the server to clear the httpOnly cookie (can't do it from JS)
+    await fetch("/api/logout", { method: "POST" }).catch(() => {});
     router.push("/");
   };
 
@@ -55,13 +53,14 @@ const Dashboard = memo(function Dashboard(props) {
   const fetchByRange = useCallback((start, end) => {
     if (!start || !end) return;
     if (start > end) return; // invalid range — don't fire
-    const token = cookies.get("token");
+    const token = getToken();
     if (!token) { router.push("/"); return; }
 
     const endpoints = [
       { url: "/api/cattotal",    setState: props.setCatamount   },
       { url: "/api/creditdebit", setState: props.setCreditdebit },
       { url: "/api/transtable",  setState: props.setTranstable  },
+      { url: "/api/banktrend",   setState: props.setBanktrend   },
     ];
 
     endpoints.forEach(({ url, setState }) => {
@@ -207,7 +206,7 @@ const Dashboard = memo(function Dashboard(props) {
         <p className="dash-section-title">Spending Analysis</p>
         <div className="graph maingraph">
           <div className="graphs areachart chart-card">
-            <p style={{ fontSize:12, color:"var(--text-muted)", marginBottom:4 }}>Cash flow</p>
+            <p style={{ fontSize:12, color:"var(--text-muted)", marginBottom:4 }}>Daily cash flow · hover for bank breakdown</p>
             <Areac transtables={props.transtables} />
           </div>
           <div className="graphs piechart chart-card">

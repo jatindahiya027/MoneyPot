@@ -1,38 +1,28 @@
 import { verifyJwtToken } from "@/libs/auth";
-// Initialize the database instance as null initially
-let payload = null;
-// Define the GET request handler function
-export async function GET(req, res) {
-  // Extract the Authorization header
+
+export async function GET(req) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return new Response(JSON.stringify({ error: "Authorization header missing" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
+      status: 401, headers: { "Content-Type": "application/json" },
     });
   }
 
-  // Extract the token from the Authorization header
   const token = authHeader.split(" ")[1];
   if (!token) {
     return new Response(JSON.stringify({ error: "Token missing" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
+      status: 401, headers: { "Content-Type": "application/json" },
     });
   }
 
-  try {
-    // Verify the JWT token
-     payload = await verifyJwtToken(token);
-  } catch (error) {
-    return new Response(JSON.stringify({ error: "Invalid token" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 401,
+  const payload = await verifyJwtToken(token);
+  if (!payload) {
+    return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
     });
   }
-items = "logged in, redirecting user to dashboard";
-  return new Response(JSON.stringify(items), {
-    headers: { "Content-Type": "application/json" },
-    status: 200,
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200, headers: { "Content-Type": "application/json" },
   });
 }

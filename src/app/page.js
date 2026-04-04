@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useState } from "react";
+import { setToken } from "@/libs/clientToken";
 
 export default function Home() {
   const router = useRouter();
@@ -20,8 +21,11 @@ export default function Home() {
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
-      const { success } = await res.json();
-      if (success) {
+      const data = await res.json();
+      if (data.success) {
+        // Store token in localStorage (persists across refreshes).
+        // The httpOnly cookie handles middleware/server-side route protection.
+        if (data.token) setToken(data.token);
         router.push("/protected");
         router.refresh();
       } else {
@@ -70,6 +74,10 @@ export default function Home() {
         </button>
 
         <p className="or">or</p>
+
+        <button type="button" onClick={() => router.push("/reset-password")} style={{ background:"none", border:"none", color:"var(--text-muted)", fontSize:13, cursor:"pointer", marginBottom:4, textDecoration:"underline" }}>
+          Forgot password?
+        </button>
 
         <button type="button" onClick={() => router.push("/signup")} className="signupbutton" style={{ maxWidth:300 }}>
           Create account

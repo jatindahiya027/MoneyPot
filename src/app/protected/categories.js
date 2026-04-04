@@ -1,9 +1,7 @@
 "use client";
+import { getToken, clearToken } from "@/libs/clientToken";
 import Image from "next/image";
 import { useState } from "react";
-import Cookies from "universal-cookie";
-const cookies = new Cookies();
-
 export default function Categories({ cate, setCategory, setCatamount, setTransactions }) {
   const [showForm, setShowForm] = useState(false);
   const [toast, setToast] = useState(null);
@@ -14,7 +12,7 @@ export default function Categories({ cate, setCategory, setCatamount, setTransac
   };
 
   const getdata = () => {
-    const token = cookies.get("token");
+    const token = getToken();
     if (!token) return;
     [
       { url: "/api/category", setState: setCategory },
@@ -28,7 +26,7 @@ export default function Categories({ cate, setCategory, setCatamount, setTransac
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const token = cookies.get("token");
+    const token = getToken();
     const fd = new FormData(e.target);
     const res = await fetch("/api/entercategory", {
       method: "POST",
@@ -42,7 +40,7 @@ export default function Categories({ cate, setCategory, setCatamount, setTransac
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this category?")) return;
-    const token = cookies.get("token");
+    const token = getToken();
     const res = await fetch("/api/deletecategory", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

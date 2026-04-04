@@ -6,107 +6,90 @@ const DB_PATH = path.join(process.cwd(), "collection.db");
 
 let db = null;
 
-/**
- * One-time migration: fixes any dates NOT stored as YYYY-MM-DD.
- *
- * Two cases are handled:
- *
- * 1. YYYY-DD-MM  (e.g. "2024-25-01") — legacy broken format.
- *    Detected when the middle segment (positions 6-7) is > 12,
- *    meaning it cannot be a month and must be a day.
- *    Fix: swap middle and last segments.
- *
- * 2. DD/MM/YYYY or DD-MM-YYYY  (e.g. "25/01/2024" or "25-01-2024").
- *    Detected by the separator being / or - and the year appearing last.
- *    Fix: rearrange to YYYY-MM-DD.
- *
- * Rows already in YYYY-MM-DD are untouched. After the first run this
- * becomes a harmless no-op because no rows will match the WHERE clause.
- */
+// ── Date migration: fix any non-ISO dates already in the DB ──────────────────
 async function migrateDatesToISO(db) {
   // Fix YYYY-DD-MM → YYYY-MM-DD
-  // Middle segment (chars 6-7) > 12 means it is a day, not a month
   await db.run(`
     UPDATE transactions
-    SET date = substr(date, 1, 5)
-            || substr(date, 9, 2)
-            || '-'
-            || substr(date, 6, 2)
-    WHERE
-      length(date) = 10
-      AND substr(date, 5, 1) = '-'
-      AND substr(date, 8, 1) = '-'
-      AND CAST(substr(date, 6, 2) AS INTEGER) > 12
+    SET date = substr(date,1,5)||substr(date,9,2)||'-'||substr(date,6,2)
+    WHERE length(date)=10
+      AND substr(date,5,1)='-' AND substr(date,8,1)='-'
+      AND CAST(substr(date,6,2) AS INTEGER)>12
   `);
-
   // Fix DD/MM/YYYY → YYYY-MM-DD
   await db.run(`
     UPDATE transactions
-    SET date = substr(date, 7, 4)
-            || '-'
-            || substr(date, 4, 2)
-            || '-'
-            || substr(date, 1, 2)
-    WHERE
-      length(date) = 10
-      AND substr(date, 3, 1) = '/'
-      AND substr(date, 6, 1) = '/'
-      AND CAST(substr(date, 7, 4) AS INTEGER) >= 1900
+    SET date = substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+    WHERE length(date)=10
+      AND substr(date,3,1)='/' AND substr(date,6,1)='/'
+      AND CAST(substr(date,7,4) AS INTEGER)>=1900
   `);
-
   // Fix DD-MM-YYYY → YYYY-MM-DD
-  // Only when first segment <= 31, second <= 12, and third is a 4-digit year
   await db.run(`
     UPDATE transactions
-    SET date = substr(date, 7, 4)
-            || '-'
-            || substr(date, 4, 2)
-            || '-'
-            || substr(date, 1, 2)
-    WHERE
-      length(date) = 10
-      AND substr(date, 3, 1) = '-'
-      AND substr(date, 6, 1) = '-'
-      AND CAST(substr(date, 7, 4) AS INTEGER) >= 1900
-      AND CAST(substr(date, 1, 2) AS INTEGER) <= 31
-      AND CAST(substr(date, 4, 2) AS INTEGER) <= 12
+    SET date = substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+    WHERE length(date)=10
+      AND substr(date,3,1)='-' AND substr(date,6,1)='-'
+      AND CAST(substr(date,7,4) AS INTEGER)>=1900
+      AND CAST(substr(date,1,2) AS INTEGER)<=31
+      AND CAST(substr(date,4,2) AS INTEGER)<=12
   `);
+
+  // Safe migration: add bank_name column to existing databases
+  try {
+    await db.run("ALTER TABLE transactions ADD COLUMN bank_name TEXT DEFAULT ''");
+  } catch {
+    // Column already exists — ignore
+  }
 }
 
 export async function getDb() {
   if (db) return db;
 
-  db = await open({
-    filename: DB_PATH,
-    driver: sqlite3.Database,
-  });
+  db = await open({ filename: DB_PATH, driver: sqlite3.Database });
+
+  // WAL mode for better concurrent read performance
+  await db.exec("PRAGMA journal_mode=WAL;");
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS transactions (
       transid     INTEGER PRIMARY KEY,
-      type        TEXT,
-      category    TEXT,
-      description TEXT,
-      date        TEXT,
-      amount      REAL
+      type        TEXT    NOT NULL CHECK(type IN ('Debit','Credit')),
+      category    TEXT    NOT NULL,
+      description TEXT    DEFAULT '',
+      date        TEXT    NOT NULL,
+      amount      REAL    NOT NULL CHECK(amount >= 0),
+      bank_name   TEXT    DEFAULT ''
     );
+
     CREATE TABLE IF NOT EXISTS recurring (
-      recurid INTEGER PRIMARY KEY,
-      amount  INTEGER
+      recurid     INTEGER PRIMARY KEY,
+      userid      INTEGER NOT NULL,
+      name        TEXT    NOT NULL,
+      type        TEXT    NOT NULL CHECK(type IN ('Debit','Credit')),
+      category    TEXT    NOT NULL,
+      description TEXT    DEFAULT '',
+      amount      REAL    NOT NULL CHECK(amount >= 0),
+      frequency   TEXT    NOT NULL DEFAULT 'monthly'
+        CHECK(frequency IN ('daily','weekly','monthly','yearly')),
+      next_date   TEXT    NOT NULL,
+      active      INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS budget (
-      budgetid  INTEGER PRIMARY KEY,
-      startdate TEXT,
-      enddate   TEXT,
-      amount    INTEGER
+      budgetid    INTEGER PRIMARY KEY,
+      userid      INTEGER NOT NULL,
+      category    TEXT    NOT NULL,
+      month       TEXT    NOT NULL,
+      amount      REAL    NOT NULL CHECK(amount >= 0),
+      UNIQUE(userid, category, month)
     );
     CREATE TABLE IF NOT EXISTS users (
       userid   INTEGER PRIMARY KEY,
-      name     TEXT,
+      name     TEXT    NOT NULL,
       age      INTEGER,
-      mail     TEXT,
-      password TEXT,
-      image    TEXT
+      mail     TEXT    NOT NULL UNIQUE,
+      password TEXT    NOT NULL,
+      image    TEXT    DEFAULT '/profile.png'
     );
     CREATE TABLE IF NOT EXISTS categories (
       categoryid INTEGER PRIMARY KEY,
@@ -116,25 +99,42 @@ export async function getDb() {
       fill       TEXT
     );
     CREATE TABLE IF NOT EXISTS users_transcation_link (
-      userid  INTEGER,
-      transid INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS users_recurring_link (
-      userid   INTEGER,
-      recurrid INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS users_budget_link (
-      userid   INTEGER,
-      budgetid INTEGER
+      userid  INTEGER NOT NULL,
+      transid INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS users_category_link (
-      userid      INTEGER,
-      categorykid INTEGER
+      userid      INTEGER NOT NULL,
+      categorykid INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS reset_tokens (
+      tokenid   INTEGER PRIMARY KEY,
+      userid    INTEGER NOT NULL,
+      token     TEXT    NOT NULL UNIQUE,
+      expires   TEXT    NOT NULL,
+      used      INTEGER NOT NULL DEFAULT 0
+    );
+
+    -- Indexes for common query patterns
+    CREATE INDEX IF NOT EXISTS idx_trans_link_userid  ON users_transcation_link(userid);
+    CREATE INDEX IF NOT EXISTS idx_trans_date         ON transactions(date);
+    CREATE INDEX IF NOT EXISTS idx_trans_type         ON transactions(type);
+    CREATE INDEX IF NOT EXISTS idx_recurring_userid   ON recurring(userid);
+    CREATE INDEX IF NOT EXISTS idx_budget_userid      ON budget(userid);
+    CREATE INDEX IF NOT EXISTS idx_reset_token        ON reset_tokens(token);
+
+    CREATE TABLE IF NOT EXISTS savings_goals (
+      goalid        INTEGER PRIMARY KEY,
+      userid        INTEGER NOT NULL,
+      name          TEXT    NOT NULL,
+      target_amount REAL    NOT NULL CHECK(target_amount > 0),
+      saved_amount  REAL    NOT NULL DEFAULT 0,
+      deadline      TEXT,
+      color         TEXT    DEFAULT '#22c55e',
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_goals_userid ON savings_goals(userid);
   `);
 
-  // Fix any dates in the DB that are not in YYYY-MM-DD format
   await migrateDatesToISO(db);
-
   return db;
 }
