@@ -1,9 +1,11 @@
 "use client";
-import { getToken, clearToken } from "@/libs/clientToken";
+import { getToken } from "@/libs/clientToken";
 import { useState, useEffect, useCallback } from "react";
+import { Check, X } from "lucide-react";
+import { ModalSurface } from "@/components/ui/modal-surface";
 function Toast({ message, type, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
-  return <div className={`toast toast-${type}`}><span>{type === "success" ? "✓" : "✗"}</span>{message}</div>;
+  return <div className={`toast toast-${type}`} role="status" aria-live="polite"><span>{type === "success" ? <Check size={14} aria-hidden="true" /> : <X size={14} aria-hidden="true" />}</span>{message}</div>;
 }
 
 function pctColor(pct) {
@@ -92,6 +94,7 @@ export default function BudgetPlanner({ categories }) {
         </div>
         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
           <input
+            aria-label="Budget month"
             type="month"
             value={month}
             onChange={e => setMonth(e.target.value)}
@@ -121,16 +124,15 @@ export default function BudgetPlanner({ categories }) {
 
       {/* Add form */}
       {showAddForm && (
-        <div className="form-overlay" onClick={e => e.target === e.currentTarget && setShowAddForm(false)}>
-          <div className="form-modal" style={{ maxWidth:400 }}>
+        <ModalSurface onClose={() => setShowAddForm(false)} labelledBy="add-budget-title" className="budget-modal">
             <div className="modal-header">
-              <span className="modal-title">Add budget</span>
-              <button className="btn-ghost" onClick={() => setShowAddForm(false)}>✕</button>
+              <h2 className="modal-title" id="add-budget-title">Add budget</h2>
+              <button className="btn-ghost" aria-label="Close budget form" onClick={() => setShowAddForm(false)}><X size={16} aria-hidden="true" /></button>
             </div>
             <form onSubmit={handleAdd}>
               <div className="form-group">
-                <label className="form-label">Category</label>
-                <select className="form-select" value={newCat} onChange={e => setNewCat(e.target.value)} required>
+                <label className="form-label" htmlFor="budget-category">Category</label>
+                <select className="form-select" id="budget-category" value={newCat} onChange={e => setNewCat(e.target.value)} required>
                   <option value="">— select category —</option>
                   {unbudgetedCats.map(c => <option key={c} value={c}>{c}</option>)}
                   {budgetedCats.size > 0 && (
@@ -141,8 +143,8 @@ export default function BudgetPlanner({ categories }) {
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom:0 }}>
-                <label className="form-label">Monthly limit (₹)</label>
-                <input className="form-input" type="number" min="0" step="0.01" placeholder="0.00"
+                <label className="form-label" htmlFor="budget-amount">Monthly limit (₹)</label>
+                <input className="form-input" id="budget-amount" type="number" min="0" step="0.01" placeholder="0.00"
                   value={newAmt} onChange={e => setNewAmt(e.target.value)} required />
               </div>
               <div className="form-actions">
@@ -150,8 +152,7 @@ export default function BudgetPlanner({ categories }) {
                 <button type="submit" className="btn-primary">Save budget</button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalSurface>
       )}
 
       {/* Budget rows */}
@@ -203,7 +204,7 @@ export default function BudgetPlanner({ categories }) {
                         </button>
                         <button className="btn-ghost btn-danger-ghost" style={{ fontSize:12 }}
                           onClick={() => deleteBudget(b.category)}>
-                          ✕
+                          <X size={14} aria-hidden="true" />
                         </button>
                       </>
                     )}

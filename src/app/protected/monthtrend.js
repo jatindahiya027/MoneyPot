@@ -1,5 +1,5 @@
 "use client";
-import { getToken, clearToken } from "@/libs/clientToken";
+import { getToken } from "@/libs/clientToken";
 import { useState, useEffect, useCallback } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -15,6 +15,7 @@ import {
 import {
   Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
 } from "@/components/ui/card";
+import { AlertTriangle, Check, X } from "lucide-react";
 
 function fmt(v) {
   if (Math.abs(v) >= 100000) return `₹${(v/100000).toFixed(1)}L`;
@@ -26,19 +27,29 @@ export default function MonthTrend() {
   const [data, setData] = useState({ trend: [], catByMonth: {} });
   const [months, setMonths] = useState(6);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [view, setView] = useState("bar"); // "bar" | "net" | "table"
   const [selectedMonth, setSelectedMonth] = useState(null);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     const token = getToken();
     if (!token) return;
     setLoading(true);
-    fetch(`/api/monthtrend?months=${months}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+    setError("");
+    try {
+      const response = await fetch(`/api/monthtrend?months=${months}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const state = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(state.error || "Unable to load monthly trends.");
+      if (!Array.isArray(state.trend)) throw new Error("The monthly trend response was invalid.");
+      setData({ trend: state.trend, catByMonth: state.catByMonth || {} });
+    } catch (loadError) {
+      setData({ trend: [], catByMonth: {} });
+      setError(loadError.message || "Unable to load monthly trends.");
+    } finally {
+      setLoading(false);
+    }
   }, [months]);
 
   useEffect(() => { load(); }, [load]);
@@ -47,8 +58,9 @@ export default function MonthTrend() {
   const catByMonth = data.catByMonth || {};
 
   // Summary stats
-  const avgIncome   = trend.length ? Math.round(trend.reduce((s,r) => s + r.income, 0) / trend.length) : 0;
-  const avgExpenses = trend.length ? Math.round(trend.reduce((s,r) => s + r.expenses, 0) / trend.length) : 0;
+  const avgIncome     = trend.length ? Math.round(trend.reduce((s,r) => s + r.income, 0) / trend.length) : 0;
+  const avgExpenses   = trend.length ? Math.round(trend.reduce((s,r) => s + r.expenses, 0) / trend.length) : 0;
+  const avgInvestment = trend.length ? Math.round(trend.reduce((s,r) => s + (r.investment || 0), 0) / trend.length) : 0;
   const bestSaving  = trend.length ? trend.reduce((best, r) => r.net > best.net ? r : best, trend[0]) : null;
   const worstMonth  = trend.length ? trend.reduce((worst, r) => r.net < worst.net ? r : worst, trend[0]) : null;
 
@@ -63,7 +75,7 @@ export default function MonthTrend() {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:12 }}>
         <div>
           <h2 style={{ margin:0, fontSize:20, fontWeight:600 }}>Month-over-Month Trends</h2>
-          <p style={{ margin:"4px 0 0", fontSize:13, color:"var(--text-muted)" }}>Compare income vs expenses across months</p>
+          <p style={{ margin:"4px 0 0", fontSize:13, color:"var(--text-muted)" }}>Compare income, debit, and investment across months</p>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <select value={months} onChange={e => setMonths(Number(e.target.value))}
@@ -81,7 +93,8 @@ export default function MonthTrend() {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12, marginBottom:24 }}>
           {[
             { label:"Avg monthly income",   value: fmt(avgIncome),   color:"#22c55e" },
-            { label:"Avg monthly expenses", value: fmt(avgExpenses), color:"#ef4444" },
+            { label:"Avg monthly debit",    value: fmt(avgExpenses), color:"#ef4444" },
+            { label:"Avg monthly investment", value: fmt(avgInvestment), color:"#fbbf24" },
             { label:"Best month (net)",     value: bestSaving ? `${bestSaving.label} ${fmt(bestSaving.net)}` : "—", color:"#22c55e" },
             { label:"Worst month (net)",    value: worstMonth ? `${worstMonth.label} ${fmt(worstMonth.net)}` : "—", color:"#ef4444" },
           ].map(({ label, value, color }) => (
@@ -95,13 +108,20 @@ export default function MonthTrend() {
 
       {/* View tabs */}
       <div style={{ display:"flex", gap:6, marginBottom:20 }}>
-        {[["bar","Income vs Expenses"],["net","Net savings"],["table","Table view"]].map(([v,l]) => (
+        {[["bar","Income / Debit / Investment"],["net","Net savings"],["table","Table view"]].map(([v,l]) => (
           <button key={v} style={tabStyle(view===v)} onClick={() => setView(v)}>{l}</button>
         ))}
       </div>
 
       {loading ? (
         <div style={{ textAlign:"center", padding:60, color:"var(--text-muted)" }}>Loading…</div>
+      ) : error ? (
+        <div role="alert" style={{ textAlign:"center", padding:60, color:"var(--text-muted)" }}>
+          <AlertTriangle size={24} color="var(--warning)" aria-hidden="true" />
+          <p style={{ fontSize:16, color:"var(--text-primary)", margin:"12px 0 4px" }}>Trends could not be loaded</p>
+          <p style={{ fontSize:13, margin:"0 0 16px" }}>{error}</p>
+          <button type="button" className="btn-primary" onClick={load}>Retry loading trends</button>
+        </div>
       ) : trend.length === 0 ? (
         <div style={{ textAlign:"center", padding:60, color:"var(--text-muted)" }}>
           <p style={{ fontSize:16 }}>No data yet</p>
@@ -109,21 +129,22 @@ export default function MonthTrend() {
         </div>
       ) : (
         <>
-          {/* ── Income vs Expenses — shadcn Card + bar chart ── */}
+          {/* ── Income / Debit / Investment — shadcn Card + bar chart ── */}
           {view === "bar" && (() => {
             const barConfig = {
-              income:   { label: "Income",   color: "var(--chart-1)" },
-              expenses: { label: "Expenses", color: "var(--chart-2)" },
+              income:     { label: "Income",     color: "var(--chart-1)" },
+              expenses:   { label: "Debit",      color: "var(--chart-2)" },
+              investment: { label: "Investment", color: "var(--warning)" },
             };
             // Compute trend direction for footer
             const last  = trend[trend.length - 1];
             const prev  = trend[trend.length - 2];
-            const netLast = last ? last.income - last.expenses : 0;
-            const trendUp = prev ? netLast >= (prev.income - prev.expenses) : true;
+            const netLast = last ? last.net : 0;
+            const trendUp = prev ? netLast >= prev.net : true;
             return (
               <Card>
                 <CardHeader>
-                  <CardTitle>Income vs Expenses</CardTitle>
+                  <CardTitle>Income, Debit & Investment</CardTitle>
                   <CardDescription>
                     {trend[0]?.label} – {last?.label} · click a bar to drill down
                   </CardDescription>
@@ -160,7 +181,7 @@ export default function MonthTrend() {
                             formatter={(value, name, item, index, payload) => (
                               <>
                                 <span style={{ color: "var(--text-muted)" }}>
-                                  {name === "income" ? "Income" : "Expenses"}
+                                  {name === "income" ? "Income" : name === "investment" ? "Investment" : "Debit"}
                                 </span>
                                 <span style={{ fontFamily: "DM Mono, monospace", fontWeight: 700, color: "var(--text-primary)" }}>
                                   ₹{Number(value).toLocaleString("en-IN")}
@@ -168,13 +189,22 @@ export default function MonthTrend() {
                                 {index === payload.length - 1 && (() => {
                                   const inc = payload.find(p => p.dataKey === "income")?.value || 0;
                                   const exp = payload.find(p => p.dataKey === "expenses")?.value || 0;
+                                  const inv = payload.find(p => p.dataKey === "investment")?.value || 0;
                                   const net = inc - exp;
                                   return (
-                                    <div style={{ gridColumn: "1/-1", borderTop: "1px solid var(--border)", paddingTop: 6, marginTop: 4, display: "flex", justifyContent: "space-between", width: "100%" }}>
-                                      <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Net</span>
-                                      <span style={{ fontFamily: "DM Mono, monospace", fontWeight: 700, color: net >= 0 ? "var(--chart-1)" : "var(--chart-2)" }}>
-                                        {net >= 0 ? "+" : ""}₹{Math.abs(net).toLocaleString("en-IN")}
-                                      </span>
+                                    <div style={{ gridColumn: "1/-1", borderTop: "1px solid var(--border)", paddingTop: 6, marginTop: 4, width: "100%" }}>
+                                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Net savings</span>
+                                        <span style={{ fontFamily: "DM Mono, monospace", fontWeight: 700, color: net >= 0 ? "var(--chart-1)" : "var(--chart-2)" }}>
+                                          {net >= 0 ? "+" : ""}₹{Math.abs(net).toLocaleString("en-IN")}
+                                        </span>
+                                      </div>
+                                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
+                                        <span style={{ color: "var(--text-muted)" }}>Cash flow after investing</span>
+                                        <span style={{ fontFamily: "DM Mono, monospace", color: "var(--text-primary)" }}>
+                                          ₹{Math.round(inc - exp - inv).toLocaleString("en-IN")}
+                                        </span>
+                                      </div>
                                     </div>
                                   );
                                 })()}
@@ -186,6 +216,7 @@ export default function MonthTrend() {
                       <ChartLegend content={<ChartLegendContent />} />
                       <Bar dataKey="income"   fill="var(--color-income)"   radius={4} maxBarSize={36} />
                       <Bar dataKey="expenses" fill="var(--color-expenses)" radius={4} maxBarSize={36} />
+                      <Bar dataKey="investment" fill="var(--color-investment)" radius={4} maxBarSize={36} />
                     </BarChart>
                   </ChartContainer>
                 </CardContent>
@@ -195,7 +226,7 @@ export default function MonthTrend() {
                     <span style={{ fontSize: 16 }}>{trendUp ? "📈" : "📉"}</span>
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    Last month net: <strong style={{ color: netLast >= 0 ? "var(--chart-1)" : "var(--chart-2)" }}>
+                    Last month net savings: <strong style={{ color: netLast >= 0 ? "var(--chart-1)" : "var(--chart-2)" }}>
                       {netLast >= 0 ? "+" : ""}₹{Math.abs(netLast).toLocaleString("en-IN")}
                     </strong>
                   </div>
@@ -272,7 +303,7 @@ export default function MonthTrend() {
                 <CardFooter className="flex-col items-start gap-1 text-sm">
                   <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: "var(--text-primary)" }}>
                     {positiveMonths} of {trend.length} months in the green
-                    &nbsp;<span style={{ fontSize: 16 }}>{positiveMonths >= trend.length / 2 ? "✅" : "⚠️"}</span>
+                    {positiveMonths >= trend.length / 2 ? <Check size={16} color="var(--chart-1)" aria-hidden="true" /> : <AlertTriangle size={16} color="#f59e0b" aria-hidden="true" />}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                     Total net over period:&nbsp;
@@ -291,7 +322,7 @@ export default function MonthTrend() {
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                 <thead>
                   <tr style={{ borderBottom:"1px solid var(--border)" }}>
-                    {["Month","Income","Expenses","Net","Savings rate"].map(h => (
+                    {["Month","Income","Debit","Investment","Cash flow after investing","Net savings","Savings rate"].map(h => (
                       <th key={h} style={{ textAlign: h==="Month"?"left":"right", padding:"8px 12px", fontWeight:500, color:"var(--text-muted)", fontSize:12 }}>{h}</th>
                     ))}
                   </tr>
@@ -306,6 +337,10 @@ export default function MonthTrend() {
                         <td style={{ padding:"10px 12px", fontWeight:500 }}>{r.label}</td>
                         <td style={{ padding:"10px 12px", textAlign:"right", color:"#22c55e" }}>₹{r.income.toLocaleString("en-IN")}</td>
                         <td style={{ padding:"10px 12px", textAlign:"right", color:"#ef4444" }}>₹{r.expenses.toLocaleString("en-IN")}</td>
+                        <td style={{ padding:"10px 12px", textAlign:"right", color:"#fbbf24" }}>₹{(r.investment || 0).toLocaleString("en-IN")}</td>
+                        <td style={{ padding:"10px 12px", textAlign:"right", color: (r.cashFlow ?? r.income - r.expenses - (r.investment || 0)) >= 0 ? "#22c55e" : "#ef4444" }}>
+                          ₹{Math.round(r.cashFlow ?? r.income - r.expenses - (r.investment || 0)).toLocaleString("en-IN")}
+                        </td>
                         <td style={{ padding:"10px 12px", textAlign:"right", fontWeight:600, color: r.net >= 0 ? "#22c55e" : "#ef4444" }}>
                           {r.net >= 0 ? "+" : ""}₹{r.net.toLocaleString("en-IN")}
                         </td>
@@ -325,7 +360,7 @@ export default function MonthTrend() {
             <div style={{ marginTop:24, background:"var(--bg-secondary)", borderRadius:10, padding:"16px 20px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                 <h3 style={{ margin:0, fontSize:15, fontWeight:600 }}>Top expenses — {selectedMonth.label}</h3>
-                <button className="btn-ghost" onClick={() => setSelectedMonth(null)}>✕</button>
+                <button className="btn-ghost" onClick={() => setSelectedMonth(null)}><X size={16} aria-hidden="true" /></button>
               </div>
               {catByMonth[selectedMonth.month].map(c => (
                 <div key={c.category} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border)", fontSize:13 }}>

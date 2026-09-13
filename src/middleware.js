@@ -5,11 +5,24 @@ const AUTH_PAGES = ["/"];
 
 const isAuthPages = (url) => AUTH_PAGES.some((page) => page.startsWith(url));
 
-export async function middleware(request, res, next) {
+export async function middleware(request) {
   
   const { url, nextUrl, cookies } = request;
   const token = cookies.get("token")?.value;
   const isAuthPageRequested = isAuthPages(nextUrl.pathname);
+
+  if (nextUrl.pathname.startsWith("/api/")) {
+    if (!token) return NextResponse.next();
+    const payload = await verifyJwtToken(token);
+    if (!payload) {
+      const response = NextResponse.next();
+      response.cookies.delete("token");
+      return response;
+    }
+    const headers = new Headers(request.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    return NextResponse.next({ request: { headers } });
+  }
 
   if (isAuthPageRequested) {
     if (!token) {
@@ -47,4 +60,4 @@ export async function middleware(request, res, next) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/", "/protected/:path*"] };
+export const config = { matcher: ["/", "/protected/:path*", "/api/:path*"] };

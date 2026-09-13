@@ -1,12 +1,20 @@
 "use client";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { useState } from "react";
+import { Lock, Mail, User, UserRound } from "lucide-react";
+import { AuthShell } from "@/components/auth-shell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 
 export default function Signup() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pin, setPin] = useState("");
+  const [pinConfirmation, setPinConfirmation] = useState("");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -17,68 +25,93 @@ export default function Signup() {
     const age = formData.get("age");
     const email = formData.get("email");
     const password = formData.get("password");
+    if (pin && pin.length !== 6) {
+      setError("Enter all six PIN digits, or leave both PIN fields empty.");
+      setLoading(false);
+      return;
+    }
+    if (pin !== pinConfirmation) {
+      setError("The quick unlock PINs do not match.");
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/signup", {
         method: "POST",
-        body: JSON.stringify({ username, age, email, password }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, age, email, password, pin }),
       });
-      const { success, user } = await res.json();
+      const payload = await res.json().catch(() => ({ success:false, user:`MoneyPot returned an invalid response (${res.status}).` }));
+      const { success, user } = payload;
       if (success) {
         router.push("/");
         router.refresh();
       } else {
         setError(user || "Signup failed. Please try again.");
       }
-    } catch { setError("Connection error. Please try again."); }
+    } catch (error) { setError(`MoneyPot could not reach its local service. Restart the app and try again${error?.message ? ` (${error.message})` : "."}`); }
     setLoading(false);
   };
 
   return (
-    <div className="login">
-      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:32 }}>
-        <Image alt="logo" src="/logo.png" height={40} width={40} />
-        <span style={{ fontSize:22, fontWeight:700, letterSpacing:"-0.5px" }}>MoneyPot</span>
-      </div>
-
-      <form onSubmit={handleSubmit} className="loginform">
-        <p className="loginhead">Create account</p>
-        <p style={{ fontSize:13, color:"var(--text-muted)", marginBottom:24, marginTop:-18, textAlign:"center" }}>
-          Start tracking your finances
-        </p>
-
-        <div style={{ width:"100%", maxWidth:300, display:"flex", flexDirection:"column" }}>
+    <AuthShell title="Create your account" description="Set up a private workspace for your finances." error={error}>
+      <form onSubmit={handleSubmit} className="auth-form">
+        <div className="auth-fields-grid">
           {[
-            { label:"Name",     name:"name",     icon:"/user.png",   type:"text",     placeholder:"Your name" },
-            { label:"Age",      name:"age",      icon:"/age.png",    type:"number",   placeholder:"Your age" },
-            { label:"Email",    name:"email",    icon:"/email.png",  type:"email",    placeholder:"your@email.com" },
-            { label:"Password", name:"password", icon:"/padlock.png",type:"password", placeholder:"Min 6 characters" },
-          ].map(({ label, name, icon, type, placeholder }) => (
-            <div key={name} style={{ marginBottom:14 }}>
-              <p style={{ fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>{label}</p>
-              <label className="label" style={{ width:"100%", maxWidth:"100%" }}>
-                <Image alt={label} src={icon} height={26} width={26} style={{ opacity:0.6 }} />
-                <input type={type} name={name} placeholder={placeholder} />
-              </label>
+            { label:"Name",     name:"name",     Icon:User,      type:"text",     placeholder:"Your name" },
+            { label:"Age",      name:"age",      Icon:UserRound, type:"number",   placeholder:"Your age" },
+            { label:"Email",    name:"email",    Icon:Mail,      type:"email",    placeholder:"your@email.com" },
+            { label:"Password", name:"password", Icon:Lock,      type:"password", placeholder:"At least 8 characters" },
+          ].map(({ label, name, Icon, type, placeholder }) => (
+            <div key={name} className="auth-field">
+              <Label htmlFor={name}>{label}</Label>
+              <div className="auth-input-wrap">
+                <Icon aria-hidden="true" />
+                <Input id={name} type={type} name={name} placeholder={placeholder} required autoComplete={name === "email" ? "email" : name === "password" ? "new-password" : "off"} />
+              </div>
             </div>
           ))}
         </div>
-
-        {error && (
-          <div style={{ marginTop:4, marginBottom:8, padding:"8px 14px", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:8, fontSize:13, color:"#f87171", width:"100%", maxWidth:300, textAlign:"center" }}>
-            {error}
+        <div className="auth-pin-setup">
+          <div className="auth-label-row">
+            <Label htmlFor="signup-pin">Quick unlock PIN</Label>
+            <span>Optional</span>
           </div>
-        )}
-
-        <button type="submit" className="loginbutton" style={{ maxWidth:300 }} disabled={loading}>
-          {loading ? "Creating account…" : "Create account"}
-        </button>
-
-        <p className="or">Already have an account?</p>
-
-        <button type="button" onClick={() => router.push("/")} className="signupbutton" style={{ maxWidth:300 }}>
-          Sign in
-        </button>
+          <p>Use six digits for faster local sign-in. Leave this empty to use only your password.</p>
+          <InputOTP
+            id="signup-pin"
+            value={pin}
+            onChange={setPin}
+            maxLength={6}
+            pattern={REGEXP_ONLY_DIGITS}
+            disabled={loading}
+            autoComplete="new-password"
+            aria-label="Optional six-digit quick unlock PIN"
+          >
+            <InputOTPGroup>
+              {Array.from({ length: 6 }, (_, index) => <InputOTPSlot key={index} index={index} />)}
+            </InputOTPGroup>
+          </InputOTP>
+          <Label htmlFor="signup-pin-confirmation">Confirm quick unlock PIN</Label>
+          <InputOTP
+            id="signup-pin-confirmation"
+            value={pinConfirmation}
+            onChange={setPinConfirmation}
+            maxLength={6}
+            pattern={REGEXP_ONLY_DIGITS}
+            disabled={loading}
+            autoComplete="new-password"
+            aria-label="Confirm optional six-digit quick unlock PIN"
+          >
+            <InputOTPGroup>
+              {Array.from({ length: 6 }, (_, index) => <InputOTPSlot key={index} index={index} />)}
+            </InputOTPGroup>
+          </InputOTP>
+        </div>
+        <Button type="submit" className="w-full" disabled={loading}>{loading ? "Creating account…" : "Create account"}</Button>
       </form>
-    </div>
+      <div className="auth-divider"><span>Already have an account?</span></div>
+      <Button type="button" variant="outline" className="w-full" onClick={() => router.push("/")}>Sign in</Button>
+    </AuthShell>
   );
 }

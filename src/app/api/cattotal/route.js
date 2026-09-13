@@ -17,11 +17,18 @@ export async function GET(req) {
 
   const db = await getDb();
   const items = await db.all(`
-    SELECT t.category, SUM(t.amount) AS amount, c.fill AS fill
+    SELECT t.category, ROUND(SUM(t.amount),2) AS amount,
+      COALESCE((
+        SELECT c.fill FROM categories c
+        JOIN users_category_link owned ON owned.categorykid=c.categoryid
+        WHERE owned.userid=l.userid AND c.type=t.type AND lower(c.name)=lower(t.category)
+        ORDER BY c.categoryid LIMIT 1
+      ), '#888888') AS fill
     FROM transactions t
     JOIN users_transcation_link l ON t.transid = l.transid
-    JOIN categories c ON c.name = t.category
-    WHERE l.userid = ? AND t.type = 'Debit'
+    WHERE l.userid = ?
+      AND t.type = 'Debit'
+      AND lower(COALESCE(t.category, '')) NOT LIKE '%self%'
     GROUP BY t.category
   `, [payload.id]);
   return new Response(JSON.stringify(items), { headers: { "Content-Type": "application/json" }, status: 200 });
@@ -34,15 +41,23 @@ export async function POST(req) {
   const db = await getDb();
   const { StartDate, EndDate } = await req.json();
 
-  const startDate = ISO_RE.test(StartDate) ? StartDate : "2000-01-01";
+  const startDate = ISO_RE.test(StartDate) ? StartDate : "";
   const endDate   = ISO_RE.test(EndDate)   ? EndDate   : "2099-12-31";
 
   const items = await db.all(`
-    SELECT t.category, SUM(t.amount) AS amount, c.fill AS fill
+    SELECT t.category, ROUND(SUM(t.amount),2) AS amount,
+      COALESCE((
+        SELECT c.fill FROM categories c
+        JOIN users_category_link owned ON owned.categorykid=c.categoryid
+        WHERE owned.userid=l.userid AND c.type=t.type AND lower(c.name)=lower(t.category)
+        ORDER BY c.categoryid LIMIT 1
+      ), '#888888') AS fill
     FROM transactions t
     JOIN users_transcation_link l ON t.transid = l.transid
-    JOIN categories c ON c.name = t.category
-    WHERE l.userid = ? AND t.type = 'Debit' AND t.date BETWEEN ? AND ?
+    WHERE l.userid = ?
+      AND t.type = 'Debit'
+      AND t.date BETWEEN ? AND ?
+      AND lower(COALESCE(t.category, '')) NOT LIKE '%self%'
     GROUP BY t.category
   `, [payload.id, startDate, endDate]);
   return new Response(JSON.stringify(items), { headers: { "Content-Type": "application/json" }, status: 200 });

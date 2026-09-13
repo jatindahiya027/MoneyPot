@@ -1,8 +1,13 @@
 "use client";
-import { getToken, clearToken } from "@/libs/clientToken";
+import { getToken } from "@/libs/clientToken";
+import { useModalFocus } from "@/hooks/useModalFocus";
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import Image from "next/image";
-import ReactMarkdown from "react-markdown";
+import { AlertTriangle, ArrowDown, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, BarChart3, Building2, Check, Edit3, File, FileSpreadsheet, FileText, FolderOpen, Loader2, Search, TableCellsSplit, Trash2, X } from "lucide-react";
+import DatePicker from "@/components/ui/date-picker";
+import { AnimatePresence, easeOut, motion } from "@/components/ui/motion";
+import { Button } from "@/components/ui/button";
+import { hasSignedAmounts, inferImportedTransactionType, parseStatementAmount } from "@/lib/importTransactionType.mjs";
+import { parseCSVText } from "@/lib/csv.mjs";
 // ─── Toast ────────────────────────────────────────────────────
 
 // ─── Auto-categorization rule engine ──────────────────────────
@@ -190,33 +195,6 @@ const AUTO_CAT_RULES = [
   // Google Pay appears as "Google Pa" in truncated Canara Bank narrations
   { pattern: /Google\s*Pa\b/i,                                              category: "Miscellaneous" },
 
-  // ── Confirmed personal names from transaction patterns ────────
-  // These are repeat contacts in Jatin's statements — categorized by
-  // transaction pattern: credits only = money received back = Friends,
-  // small irregular amounts = splitting bills = Friends
-
-  // ── Personal names — confirmed by account holder ────────────────
-
-  // Friends (confirmed)
-  { pattern: /PRIYA\s*VERMA|PRIYA\s*VER/i,                                category: "Friends" },
-  { pattern: /ABHIGYAN/i,                                                    category: "Friends" },
-  { pattern: /SANKA\s*POTHANA|SANKA\s*POT/i,                              category: "Friends" },
-  { pattern: /NIDHI\s*DAH|NIDHI\s*DAHIYA/i,                               category: "Friends" },
-
-  // PG owners — pay rent to them
-  { pattern: /ANUSHA\s*SANNAPAREDDY/i,                                      category: "Rent" },
-  { pattern: /RAJAMOHAN\s*REDDY/i,                                          category: "Rent" },
-
-  // Swimming pool / sports facility
-  { pattern: /NAGAPURI\s*CHANDRA/i,                                         category: "Personal Care" },
-
-  // Misc: Ola/Uber drivers, small shop owners, others
-  { pattern: /SAINATH\s*GAWALI/i,                                           category: "Miscellaneous" },
-  { pattern: /KARUNA\s*REDDY/i,                                             category: "Miscellaneous" },
-  { pattern: /CHESSMEN\s*ASSOC/i,                                           category: "Miscellaneous" },
-  { pattern: /YARAVA\s*SEKHAR/i,                                            category: "Miscellaneous" },
-  { pattern: /\bNARENDRA\s*\/|NARENDRA\s*\//i,                          category: "Miscellaneous" },
-
   // ── Indian Clearing Corp (ICICI) = salary/payroll credit ────────
   { pattern: /Indian\s*Cl[\s\/]|INDIAN\s*CLEARING/i,                     category: "Salary",        type: "Credit" },
 
@@ -264,8 +242,8 @@ function Toast({ message, type, onClose }) {
     return () => clearTimeout(t);
   }, [onClose]);
   return (
-    <div className={`toast toast-${type}`}>
-      <span>{type === "success" ? "✓" : "✗"}</span>
+    <div className={`toast toast-${type}`} role="status" aria-live="polite">
+      <span>{type === "success" ? <Check size={14} aria-hidden="true" /> : <X size={14} aria-hidden="true" />}</span>
       {message}
     </div>
   );
@@ -273,63 +251,66 @@ function Toast({ message, type, onClose }) {
 
 // ─── Single Transaction Form ──────────────────────────────────
 function TransactionForm({ onSubmit, onClose, initialData, categories, title }) {
+  const modalRef = useModalFocus(onClose);
   const [selectedType, setSelectedType] = useState(initialData?.type || "Debit");
-  const [bankName, setBankName] = useState(initialData?.bank_name || "");
+  const [bankName, setBankName] = useState(() => initialData?.bank_name || (typeof window !== "undefined" ? localStorage.getItem("moneypot_default_bank") : "") || "");
 
   return (
     <div className="form-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="form-modal">
-        <div className="modal-header">
-          <span className="modal-title">{title}</span>
-          <button className="btn-ghost" onClick={onClose}>✕</button>
+      <div ref={modalRef} tabIndex={-1} className="form-modal transaction-workflow" role="dialog" aria-modal="true" aria-labelledby="transaction-form-title">
+        <div className="transaction-workflow-header">
+          <div>
+            <h2 className="modal-title" id="transaction-form-title">{title}</h2>
+            <p>{initialData ? "Update the transaction details below." : "Record one debit, credit, or investment."}</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close transaction form"><X aria-hidden="true" /></Button>
         </div>
-        <form onSubmit={onSubmit}>
+        <form className="transaction-workflow-form" onSubmit={onSubmit}>
           <input type="hidden" name="id" value={initialData?.transid || ""} />
-          <div className="form-row">
+          <div className="transaction-workflow-body transaction-form-grid">
             <div className="form-group">
-              <label className="form-label">Type</label>
-              <select className="form-select" name="type" value={selectedType}
+              <label className="form-label" htmlFor="transaction-type">Type</label>
+              <select className="form-select" id="transaction-type" name="type" value={selectedType}
                 onChange={e => setSelectedType(e.target.value)}>
                 <option value="Debit">Debit</option>
                 <option value="Credit">Credit</option>
+                <option value="Investment">Investment</option>
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Category</label>
-              <select className="form-select" name="category" defaultValue={initialData?.category || ""}>
+              <label className="form-label" htmlFor="transaction-category">Category</label>
+              <select className="form-select" id="transaction-category" name="category" defaultValue={initialData?.category || ""}>
                 {categories.filter(c => c.type === selectedType).map((c, i) => (
                   <option key={i} value={c.name}>{c.name}</option>
                 ))}
               </select>
             </div>
-          </div>
-          <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Date</label>
-              <input className="form-input" type="date" name="date"
+              <label className="form-label" htmlFor="transaction-date">Date</label>
+              <DatePicker id="transaction-date" ariaLabel="Transaction date" className="form-input" name="date"
                 defaultValue={initialData?.date || new Date().toISOString().split("T")[0]} />
             </div>
             <div className="form-group">
-              <label className="form-label">Amount (₹)</label>
-              <input className="form-input" type="number" name="amount" step="0.01"
-                placeholder="0.00" defaultValue={initialData?.amount || ""} />
+              <label className="form-label" htmlFor="transaction-amount">Amount (₹)</label>
+              <input className="form-input" id="transaction-amount" type="number" name="amount" min="0" step="0.01"
+                placeholder="0.00" defaultValue={initialData?.amount != null ? Math.abs(Number(initialData.amount)) : ""} />
             </div>
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Description</label>
-            <textarea className="form-textarea" name="description" rows={3}
+          <div className="form-group transaction-field-wide">
+            <label className="form-label" htmlFor="transaction-description">Description</label>
+            <textarea className="form-textarea" id="transaction-description" name="description" rows={3} maxLength={300}
               placeholder="Optional description…" defaultValue={initialData?.description || ""} />
           </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Bank / Account</label>
+          <div className="form-group transaction-field-wide">
+            <label className="form-label" htmlFor="transaction-bank">Bank / Account</label>
             <input type="hidden" name="bank_name" value={bankName} />
-            <BankSelector value={bankName} onChange={setBankName} placeholder="Select or type bank name…" />
+            <BankSelector inputId="transaction-bank" value={bankName} onChange={setBankName} placeholder="Select or type bank name…" />
           </div>
-          <div className="form-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary">
+          </div>
+          <div className="transaction-workflow-actions">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit">
               {initialData ? "Save changes" : "Add transaction"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -339,10 +320,13 @@ function TransactionForm({ onSubmit, onClose, initialData, categories, title }) 
 
 // ─── Bulk Entry Form ──────────────────────────────────────────
 function BulkForm({ onClose, onSuccess, categories }) {
-  const emptyRow = () => ({ type: "Debit", category: "", description: "", date: new Date().toISOString().split("T")[0], amount: "", bank_name: "" });
-  const [rows, setRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
+  const modalRef = useModalFocus(onClose);
+  const nextRowId = useRef(0);
+  const emptyRow = () => ({ rowId: ++nextRowId.current, type: "Debit", category: "", description: "", date: new Date().toISOString().split("T")[0], amount: "", bank_name: "" });
+  const [rows, setRows] = useState(() => [emptyRow(), emptyRow(), emptyRow()]);
   const [loading, setLoading] = useState(false);
-  const [globalBank, setGlobalBank] = useState("");
+  const [bulkError, setBulkError] = useState("");
+  const [globalBank, setGlobalBank] = useState(() => typeof window !== "undefined" ? localStorage.getItem("moneypot_default_bank") || "" : "");
 
   // Apply a bank to all rows at once
   const applyBankToAll = (bank) => {
@@ -360,10 +344,15 @@ function BulkForm({ onClose, onSuccess, categories }) {
   const handleSubmit = async () => {
     const token = getToken();
     const validRows = rows.filter(r => r.amount && r.date).map(r => ({
-      ...r,
+      type: r.type,
+      category: r.category,
+      description: r.description,
       date: normalizeBulkDate(r.date),
+      amount: r.amount,
+      bank_name: r.bank_name,
     }));
     if (!validRows.length) return;
+    setBulkError("");
     setLoading(true);
     try {
       // Single batched request instead of N sequential fetches
@@ -373,50 +362,58 @@ function BulkForm({ onClose, onSuccess, categories }) {
         body: JSON.stringify({ rows: validRows }),
       });
       const data = await res.json();
-      if (data.success) onSuccess(data.inserted);
-      else console.error("Bulk insert error:", data.error);
-    } catch (e) { console.error(e); }
-    setLoading(false);
+      if (!res.ok || !data.success) {
+        const detail = data.errors?.slice(0, 3).map(item => `Row ${item.row}: ${item.error}`).join(" ");
+        throw new Error(detail || data.error || "Bulk entry failed.");
+      }
+      onSuccess(data.inserted);
+    } catch (error) { setBulkError(error?.message || "Bulk entry failed. No transactions were added."); }
+    finally { setLoading(false); }
   };
 
   return (
     <div className="form-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="form-modal form-modal-wide">
-        <div className="modal-header">
-          <span className="modal-title">Bulk Entry</span>
-          <button className="btn-ghost" onClick={onClose}>✕</button>
+      <div ref={modalRef} tabIndex={-1} className="form-modal form-modal-wide transaction-workflow transaction-workflow-wide" role="dialog" aria-modal="true" aria-labelledby="bulk-entry-title">
+        <div className="transaction-workflow-header">
+          <div>
+            <h2 className="modal-title" id="bulk-entry-title">Bulk entry</h2>
+            <p>Add several transactions in one pass. Incomplete rows are ignored.</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close bulk entry"><X aria-hidden="true" /></Button>
         </div>
-        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>
-          Enter multiple transactions at once. Rows with empty amount/date will be skipped.
-        </p>
-        <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <label style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}>🏦 Apply bank to all rows:</label>
-          <div style={{ flex: 1, minWidth: 200, maxWidth: 320 }}>
+        <div className="transaction-workflow-body bulk-workflow-body">
+        {bulkError && <div className="form-error" role="alert">{bulkError}</div>}
+        <div className="bulk-defaults">
+          <label><Building2 aria-hidden="true" /> Default bank for these rows</label>
+          <div className="bulk-default-bank">
             <BankSelector value={globalBank} onChange={applyBankToAll}
               placeholder="Select bank for all rows…" />
           </div>
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>or set individually per row below</span>
+          <span>You can override it per row.</span>
         </div>
-        <div style={{ overflowX: "auto" }}>
+        <div className="bulk-table-wrap">
           <table className="bulk-table">
             <thead>
               <tr>
-                <th>Type</th><th>Category</th><th>Date</th>
+                <th className="bulk-row-number">#</th><th>Type</th><th>Category</th><th>Date</th>
                 <th>Amount (₹)</th><th>Description</th><th>Bank</th><th></th>
               </tr>
             </thead>
             <tbody>
+              <AnimatePresence initial={false}>
               {rows.map((row, i) => (
-                <tr key={i}>
+                <motion.tr key={row.rowId} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }} transition={{ duration: 0.18, ease: easeOut }}>
+                  <td className="bulk-row-number">{i + 1}</td>
                   <td style={{ minWidth: 100 }}>
-                    <select className="bulk-select" value={row.type}
+                    <select className="bulk-select" aria-label={`Type for row ${i + 1}`} value={row.type}
                       onChange={e => updateRow(i, "type", e.target.value)}>
                       <option value="Debit">Debit</option>
                       <option value="Credit">Credit</option>
+                      <option value="Investment">Investment</option>
                     </select>
                   </td>
                   <td style={{ minWidth: 130 }}>
-                    <select className="bulk-select" value={row.category}
+                    <select className="bulk-select" aria-label={`Category for row ${i + 1}`} value={row.category}
                       onChange={e => updateRow(i, "category", e.target.value)}>
                       <option value="">— select —</option>
                       {categories.filter(c => c.type === row.type).map((c, ci) => (
@@ -425,42 +422,46 @@ function BulkForm({ onClose, onSuccess, categories }) {
                     </select>
                   </td>
                   <td style={{ minWidth: 140 }}>
-                    <input className="bulk-input" type="date" value={row.date}
+                    <DatePicker className="bulk-input" ariaLabel={`Date for row ${i + 1}`} value={row.date}
                       onChange={e => updateRow(i, "date", e.target.value)} />
                   </td>
                   <td style={{ minWidth: 110 }}>
-                    <input className="bulk-input" type="number" step="0.01"
+                    <input className="bulk-input" aria-label={`Amount for row ${i + 1}`} type="number" min="0" step="0.01"
                       placeholder="0.00" value={row.amount}
                       onChange={e => updateRow(i, "amount", e.target.value)} />
                   </td>
                   <td style={{ minWidth: 180 }}>
-                    <input className="bulk-input" type="text" placeholder="Description"
+                    <input className="bulk-input" aria-label={`Description for row ${i + 1}`} type="text" maxLength={300} placeholder="Description"
                       value={row.description}
                       onChange={e => updateRow(i, "description", e.target.value)} />
                   </td>
                   <td style={{ minWidth: 160 }}>
                     <BankSelector
+                      ariaLabel={`Bank for row ${i + 1}`}
                       value={row.bank_name}
                       onChange={bank => updateRow(i, "bank_name", bank)}
                       placeholder="Bank…"
                     />
                   </td>
                   <td style={{ width: 36 }}>
-                    <button className="btn-ghost btn-danger-ghost" onClick={() => removeRow(i)}>✕</button>
+                    <Button type="button" variant="ghost" size="icon" className="btn-danger-ghost" onClick={() => removeRow(i)} aria-label={`Remove row ${i + 1}`}><X aria-hidden="true" /></Button>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
+              </AnimatePresence>
             </tbody>
           </table>
         </div>
-        <button className="btn-secondary" style={{ marginTop: 12 }} onClick={addRow}>
-          + Add row
-        </button>
-        <div className="form-actions">
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSubmit} disabled={loading}>
-            {loading ? "Saving…" : `Submit ${rows.filter(r => r.amount && r.date).length} rows`}
-          </button>
+        <div className="bulk-workflow-tools">
+          <Button type="button" variant="outline" size="sm" onClick={addRow}>+ Add row</Button>
+          <span>{rows.filter(r => r.amount && r.date).length} ready to save</span>
+        </div>
+        </div>
+        <div className="transaction-workflow-actions">
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button type="button" onClick={handleSubmit} disabled={loading || !rows.some(r => r.amount && r.date)}>
+            {loading ? <><Loader2 className="animate-spin" aria-hidden="true" />Saving</> : `Save ${rows.filter(r => r.amount && r.date).length} transactions`}
+          </Button>
         </div>
       </div>
     </div>
@@ -485,7 +486,7 @@ function normalizeDate(raw) {
   if (dmyFull) {
     const [, d, m, y] = dmyFull;
     // Disambiguate: if first part > 12 it must be day; if second part > 12 it's day/month/year reversed
-    const p1 = parseInt(d), p2 = parseInt(m);
+    const p1 = parseInt(d);
     if (p1 > 12) {
       // definitely DD/MM/YYYY
       return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
@@ -526,24 +527,6 @@ function normalizeDate(raw) {
   }
 
   return s; // return as-is if nothing matched
-}
-
-// Normalize when we KNOW it's MM/DD/YYYY (CSV with US date format)
-function normalizeDateUS(raw) {
-  if (!raw) return "";
-  const s = String(raw).trim();
-  const mdyFull = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-  if (mdyFull) {
-    const [, m, d, y] = mdyFull;
-    return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
-  }
-  const mdyShort = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
-  if (mdyShort) {
-    const [, m, d, yy] = mdyShort;
-    const year = parseInt(yy) >= 50 ? `19${yy}` : `20${yy}`;
-    return `${year}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
-  }
-  return normalizeDate(raw);
 }
 
 // normalizeBulkDate: for manual bulk-entry inputs — tries US format (M/D/YYYY) since
@@ -674,8 +657,7 @@ function parseDateWithFormat(raw, fmt) {
 
 // ── Amount cleaner: strips ₹, commas, spaces
 function cleanAmount(raw) {
-  if (!raw) return 0;
-  return parseFloat(String(raw).replace(/[₹,\s]/g, "")) || 0;
+  return parseStatementAmount(raw);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -983,19 +965,29 @@ async function parseGenericPDF(pdf) {
     if (isDateLike(col0)) {
       if (currentTx) transactions.push(currentTx);
       // detect withdrawal/deposit columns
-      let withdrawal = 0, deposit = 0, type = "Debit";
+      let withdrawal = 0, deposit = 0;
       const wIdx = colNames.findIndex(c => c.includes("withdraw") || c.includes("debit"));
       const dIdx = colNames.findIndex(c => c.includes("deposit") || c.includes("credit"));
       const aIdx = colNames.findIndex(c => c.includes("amount") && wIdx === -1);
+      const tIdx = colNames.findIndex(c => c === "type" || c.includes("dr/cr") || c.includes("transaction type"));
+      const descIdx = colNames.findIndex(c => c.includes("narration") || c.includes("description") || c.includes("particulars") || c.includes("transaction"));
       if (wIdx >= 0) withdrawal = cleanAmount(cells[wIdx]);
       if (dIdx >= 0) deposit = cleanAmount(cells[dIdx]);
-      const amount = withdrawal > 0 ? withdrawal : deposit > 0 ? deposit : cleanAmount(cells[aIdx] || "");
-      type = withdrawal > 0 ? "Debit" : "Credit";
-      const descIdx = colNames.findIndex(c => c.includes("narration") || c.includes("description") || c.includes("particulars") || c.includes("transaction"));
+      const rawAmount = cells[aIdx] || "";
+      const description = descIdx >= 0 ? cells[descIdx] : cells[1] || "";
+      const amount = Math.abs(withdrawal || deposit || cleanAmount(rawAmount));
+      const type = inferImportedTransactionType({
+        withdrawal,
+        deposit,
+        typeValue: tIdx >= 0 ? cells[tIdx] : "",
+        amountValue: rawAmount,
+        description,
+        fallback: "Debit",
+      });
       currentTx = {
         date: parseBankDate(col0),
         _rawDate: col0,
-        description: descIdx >= 0 ? cells[descIdx] : cells[1] || "",
+        description,
         amount,
         type,
       };
@@ -1018,6 +1010,16 @@ function detectBank(firstPageText) {
 }
 
 function ImportModal({ onClose, onSuccess, categories }) {
+  const modalRef = useModalFocus(onClose);
+  const categoryFor = (description, type, fallback = "") => {
+    const suggested = autoCategorize(description, type);
+    const allowed = categories.filter(category => category.type === type);
+    return allowed.find(category => category.name === suggested)?.name
+      || allowed.find(category => category.name === fallback)?.name
+      || allowed[0]?.name
+      || "";
+  };
+
   const [step, setStep] = useState("upload");
   const [parsedRows, setParsedRows] = useState([]);
   const [headers, setHeaders] = useState([]);
@@ -1058,7 +1060,7 @@ function ImportModal({ onClose, onSuccess, categories }) {
       deposit,
       amount: isSplit ? "" : detect(["amount", "value", "sum", "txn amount"]),
       description: detect(["narration", "description", "transaction", "particulars", "details", "memo"]),
-      type: isSplit ? "" : detect(["type", "dr/cr", "transaction type"]),
+      type: isSplit ? "" : detect(["transaction type", "type", "dr/cr", "cr/dr", "debit/credit", "credit/debit", "indicator"]),
     };
   };
 
@@ -1090,23 +1092,6 @@ function ImportModal({ onClose, onSuccess, categories }) {
     setMapping(autoDetect(hdrs));
     setParseError("");
     setStep("map");
-  };
-
-  // ── CSV parser (handles quoted fields)
-  const parseCSVText = (text) => {
-    const lines = text.trim().split(/\r?\n/);
-    const parseRow = (line) => {
-      const cells = [];
-      let cur = "", inQ = false;
-      for (const ch of line) {
-        if (ch === '"') inQ = !inQ;
-        else if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ""; }
-        else cur += ch;
-      }
-      cells.push(cur.trim());
-      return cells;
-    };
-    return lines.map(parseRow);
   };
 
   // ── Excel/XLS parser
@@ -1186,7 +1171,7 @@ function ImportModal({ onClose, onSuccess, categories }) {
       setAutoParsed(transactions);
       const previewRows = transactions.map(tx => ({
         ...tx,
-        category: autoCategorize(tx.description, tx.type) || defaultCategory,
+        category: categoryFor(tx.description, tx.type, defaultCategory),
         bank_name: importBank,
       }));
       setPreview(previewRows);
@@ -1230,27 +1215,34 @@ function ImportModal({ onClose, onSuccess, categories }) {
 
   // ── Build preview from manual column mapping (CSV/Excel path)
   const buildPreview = () => {
+    const signedAmountColumn = !splitMode && mapping.amount
+      ? hasSignedAmounts(parsedRows.map(row => row[mapping.amount]))
+      : false;
     const rows = parsedRows.map(row => {
       let amount = 0, type = defaultType;
       if (splitMode && (mapping.withdrawal || mapping.deposit)) {
-        const w = cleanAmount(row[mapping.withdrawal]);
-        const d = cleanAmount(row[mapping.deposit]);
+        const w = Math.abs(cleanAmount(row[mapping.withdrawal]));
+        const d = Math.abs(cleanAmount(row[mapping.deposit]));
         if (w > 0) { amount = w; type = "Debit"; }
         else if (d > 0) { amount = d; type = "Credit"; }
         else return null;
       } else {
-        amount = Math.abs(cleanAmount(row[mapping.amount]));
+        const rawAmount = row[mapping.amount];
+        amount = Math.abs(cleanAmount(rawAmount));
         if (!amount) return null;
-        if (mapping.type && row[mapping.type]) {
-          type = /cr|credit|\bin\b/i.test(row[mapping.type]) ? "Credit" : "Debit";
-        }
+        type = inferImportedTransactionType({
+          typeValue: mapping.type ? row[mapping.type] : "",
+          amountValue: rawAmount,
+          signedAmountColumn,
+          description: mapping.description ? row[mapping.description] : "",
+          fallback: defaultType,
+        });
       }
       const rawDate = row[mapping.date] || "";
       const date = parseDateWithFormat(rawDate, dateFormat);
       if (!date) return null;
       const desc = row[mapping.description] || "";
-      const autocat = autoCategorize(desc, type);
-      return { date, amount, type, description: desc, category: autocat || defaultCategory, bank_name: importBank };
+      return { date, amount, type, description: desc, category: categoryFor(desc, type, defaultCategory), bank_name: importBank };
     }).filter(Boolean);
     setPreview(rows);
     setStep("preview");
@@ -1259,70 +1251,74 @@ function ImportModal({ onClose, onSuccess, categories }) {
   const handleImport = async () => {
     const token = getToken();
     setLoading(true);
+    setParseError("");
     try {
-      for (const row of preview) {
-        // eslint-disable-next-line no-unused-vars
-        const { _rawDate, ...cleanRow } = row;
-        await fetch("/api/entertransaction", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(cleanRow),
-        });
+      const rows = preview.map(({ _rawDate, ...row }) => row);
+      const response = await fetch("/api/bulktransaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rows }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        const detail = data.errors?.slice(0, 3).map(item => `Row ${item.row}: ${item.error}`).join(" ");
+        throw new Error(detail || data.error || "Import failed.");
       }
-      onSuccess(preview.length);
-    } catch (e) { console.error(e); }
-    setLoading(false);
+      onSuccess(data.inserted);
+    } catch (error) {
+      setParseError(error?.message || "Import failed. No transactions were added.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const FileIcon = ({ name }) => {
     const ext = (name || "").split(".").pop().toLowerCase();
-    if (ext === "pdf") return <span style={{ fontSize: 28 }}>📕</span>;
-    if (["xlsx","xls","ods"].includes(ext)) return <span style={{ fontSize: 28 }}>📗</span>;
-    return <span style={{ fontSize: 28 }}>📄</span>;
+    if (ext === "pdf") return <FileText size={28} color="#f87171" aria-hidden="true" />;
+    if (["xlsx","xls","ods"].includes(ext)) return <FileSpreadsheet size={28} color="#4ade80" aria-hidden="true" />;
+    return <File size={28} color="var(--text-muted)" aria-hidden="true" />;
   };
 
   const bankLabel = { axis: "Axis Bank", hdfc: "HDFC Bank", sbi: "SBI", icici: "ICICI", generic: "Bank" };
 
   return (
     <div className="form-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="form-modal form-modal-wide">
-        <div className="modal-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div ref={modalRef} tabIndex={-1} className="form-modal form-modal-wide transaction-workflow transaction-workflow-wide import-workflow" role="dialog" aria-modal="true" aria-labelledby="import-statement-title">
+        <div className="transaction-workflow-header">
+          <div className="import-workflow-title">
             {step !== "upload" && (
-              <button className="btn-ghost" onClick={() => {
+              <Button type="button" variant="ghost" size="icon" aria-label="Go to previous import step" onClick={() => {
                 if (autoParsed && step === "preview") { setStep("upload"); setAutoParsed(null); }
                 else setStep(step === "preview" ? "map" : "upload");
-              }}>←</button>
+              }}><ArrowLeft aria-hidden="true" /></Button>
             )}
-            <span className="modal-title">Import Bank Statement</span>
+            <div>
+              <h2 className="modal-title" id="import-statement-title">Import bank statement</h2>
+              <p>Upload, review, and import transactions without changing the source file.</p>
+            </div>
             {detectedBank && step !== "upload" && (
-              <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: "rgba(90,130,225,0.15)", color: "#7099f0" }}>
+              <span className="import-bank-badge">
                 {bankLabel[detectedBank] || detectedBank}
               </span>
             )}
           </div>
-          <button className="btn-ghost" onClick={onClose}>✕</button>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close statement import"><X aria-hidden="true" /></Button>
         </div>
+        <div className="transaction-workflow-body import-workflow-body">
 
         {/* Step indicator — hide "Map Columns" for auto-parsed PDFs */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 24, alignItems: "center" }}>
+        <div className="transaction-workflow-steps" aria-label="Import progress">
           {(autoParsed ? ["Upload File", "Preview & Import"] : ["Upload File", "Map Columns", "Preview & Import"]).map((s, i) => {
             const stepKey = autoParsed ? ["upload","preview"][i] : ["upload","map","preview"][i];
             const done = STEPS.indexOf(step) > STEPS.indexOf(stepKey);
             const active = step === stepKey;
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{
-                  width: 22, height: 22, borderRadius: "50%", display: "flex",
-                  alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700,
-                  background: done || active ? "var(--accent)" : "var(--bg-card)",
-                  color: done || active ? "white" : "var(--text-muted)",
-                  transition: "all 0.2s",
-                }}>
-                  {done ? "✓" : i + 1}
+              <div className={`transaction-workflow-step${active ? " active" : ""}${done ? " done" : ""}`} key={i}>
+                <div>
+                  {done ? <Check size={12} strokeWidth={3} aria-hidden="true" /> : i + 1}
                 </div>
-                <span style={{ fontSize: 12, color: active ? "azure" : "var(--text-muted)" }}>{s}</span>
-                {i < (autoParsed ? 1 : 2) && <span style={{ color: "#333", margin: "0 2px" }}>›</span>}
+                <span>{s}</span>
+                {i < (autoParsed ? 1 : 2) && <i aria-hidden="true" />}
               </div>
             );
           })}
@@ -1333,12 +1329,22 @@ function ImportModal({ onClose, onSuccess, categories }) {
           <>
             <div
               className={`import-dropzone ${dragging ? "drag-over" : ""}`}
+              role="button"
+              tabIndex={0}
+              aria-controls="bank-file-input"
+              aria-label="Choose or drop a bank statement"
               onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={handleDrop}
               onClick={() => document.getElementById("bank-file-input").click()}
+              onKeyDown={event => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  document.getElementById("bank-file-input").click();
+                }
+              }}
             >
-              <div style={{ fontSize: 40, marginBottom: 12 }}>{loading ? "⏳" : "📂"}</div>
+              <div className="import-dropzone-icon">{loading ? <Loader2 size={40} className="spin-icon" aria-hidden="true" /> : <FolderOpen size={40} aria-hidden="true" />}</div>
               <p style={{ fontWeight: 600, marginBottom: 6 }}>
                 {loading ? "Parsing file…" : "Drop your bank statement here"}
               </p>
@@ -1358,18 +1364,18 @@ function ImportModal({ onClose, onSuccess, categories }) {
 
             {parseError && (
               <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 10, fontSize: 13, color: "#f87171" }}>
-                ⚠ {parseError}
+                <AlertTriangle size={14} aria-hidden="true" /> {parseError}
               </div>
             )}
 
-            <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div className="import-format-grid">
               {[
-                { icon: "📄", fmt: "CSV", tip: "Universal format — works with all banks. Download from internet banking." },
-                { icon: "📗", fmt: "Excel (.xlsx / .xls)", tip: "HDFC, ICICI and most portals. Multi-sheet supported. Skips header rows automatically." },
-                { icon: "📕", fmt: "PDF (Auto)", tip: "Axis Bank & HDFC Bank fully supported — auto-parsed, no column mapping needed. Other banks use generic parser." },
-              ].map(({ icon, fmt, tip }) => (
-                <div key={fmt} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 20, marginBottom: 6 }}>{icon}</div>
+                { Icon: File, fmt: "CSV", tip: "Universal format — works with all banks. Download from internet banking." },
+                { Icon: FileSpreadsheet, fmt: "Excel (.xlsx / .xls)", tip: "HDFC, ICICI and most portals. Multi-sheet supported. Skips header rows automatically." },
+                { Icon: FileText, fmt: "PDF (Auto)", tip: "Axis Bank & HDFC Bank fully supported — auto-parsed, no column mapping needed. Other banks use generic parser." },
+              ].map(({ Icon, fmt, tip }) => (
+                <div key={fmt} className="import-format-item">
+                  <Icon size={20} style={{ marginBottom: 6 }} aria-hidden="true" />
                   <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{fmt}</p>
                   <p style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>{tip}</p>
                 </div>
@@ -1394,8 +1400,8 @@ function ImportModal({ onClose, onSuccess, categories }) {
 
             {sheetNames.length > 1 && (
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label className="form-label">Sheet</label>
-                <select className="form-select" value={selectedSheet} onChange={e => switchSheet(Number(e.target.value))}>
+                <label className="form-label" htmlFor="import-sheet">Sheet</label>
+                <select className="form-select" id="import-sheet" value={selectedSheet} onChange={e => switchSheet(Number(e.target.value))}>
                   {sheetNames.map((n, i) => <option key={i} value={i}>{n}</option>)}
                 </select>
               </div>
@@ -1411,8 +1417,8 @@ function ImportModal({ onClose, onSuccess, categories }) {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
               <div className="form-group">
-                <label className="form-label">Date column *</label>
-                <select className="form-select" value={mapping.date} onChange={e => setMapping(p => ({ ...p, date: e.target.value }))}>
+                <label className="form-label" htmlFor="import-date-column">Date column *</label>
+                <select className="form-select" id="import-date-column" value={mapping.date} onChange={e => setMapping(p => ({ ...p, date: e.target.value }))}>
                   <option value="">— not mapped —</option>
                   {headers.map((h, i) => <option key={i} value={h}>{h || `Col ${i+1}`}</option>)}
                 </select>
@@ -1423,10 +1429,10 @@ function ImportModal({ onClose, onSuccess, categories }) {
 
               {/* ── Date Format Selector ── */}
               <div className="form-group" style={{ gridColumn: "1 / -1", background: "rgba(112,153,240,0.07)", border: "1px solid rgba(112,153,240,0.2)", borderRadius: 10, padding: "12px 14px" }}>
-                <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <label className="form-label" htmlFor="import-date-format" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                   📅 Date Format in this file
                 </label>
-                <select className="form-select" value={dateFormat} onChange={e => setDateFormat(e.target.value)}>
+                <select className="form-select" id="import-date-format" value={dateFormat} onChange={e => setDateFormat(e.target.value)}>
                   {DATE_FORMAT_OPTIONS.map(o => (
                     <option key={o.value} value={o.value}>{o.label} — e.g. {o.example}</option>
                   ))}
@@ -1437,9 +1443,9 @@ function ImportModal({ onClose, onSuccess, categories }) {
                   return (
                     <span style={{ fontSize: 11, marginTop: 6, display: "block" }}>
                       Raw: <strong style={{ color: "var(--text-muted)" }}>{raw}</strong>
-                      <span style={{ margin: "0 6px", color: "#555" }}>→</span>
+                      <ArrowRight size={12} style={{ margin: "0 6px", color: "var(--text-muted)", verticalAlign: -2 }} aria-hidden="true" />
                       <strong style={{ color: parsed && parsed !== raw ? "#4ade80" : parsed ? "#aaa" : "#f87171" }}>
-                        {parsed || "⚠ Could not parse — try a different format"}
+                        {parsed || "Could not parse - try a different format"}
                       </strong>
                     </span>
                   );
@@ -1448,8 +1454,8 @@ function ImportModal({ onClose, onSuccess, categories }) {
 
               {splitMode ? (<>
                 <div className="form-group">
-                  <label className="form-label">Withdrawal / Debit column *</label>
-                  <select className="form-select" value={mapping.withdrawal} onChange={e => setMapping(p => ({ ...p, withdrawal: e.target.value }))}>
+                  <label className="form-label" htmlFor="import-withdrawal-column">Withdrawal / Debit column *</label>
+                  <select className="form-select" id="import-withdrawal-column" value={mapping.withdrawal} onChange={e => setMapping(p => ({ ...p, withdrawal: e.target.value }))}>
                     <option value="">— not mapped —</option>
                     {headers.map((h, i) => <option key={i} value={h}>{h || `Col ${i+1}`}</option>)}
                   </select>
@@ -1458,8 +1464,8 @@ function ImportModal({ onClose, onSuccess, categories }) {
                   )}
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Deposit / Credit column *</label>
-                  <select className="form-select" value={mapping.deposit} onChange={e => setMapping(p => ({ ...p, deposit: e.target.value }))}>
+                  <label className="form-label" htmlFor="import-deposit-column">Deposit / Credit column *</label>
+                  <select className="form-select" id="import-deposit-column" value={mapping.deposit} onChange={e => setMapping(p => ({ ...p, deposit: e.target.value }))}>
                     <option value="">— not mapped —</option>
                     {headers.map((h, i) => <option key={i} value={h}>{h || `Col ${i+1}`}</option>)}
                   </select>
@@ -1469,8 +1475,8 @@ function ImportModal({ onClose, onSuccess, categories }) {
                 </div>
               </>) : (<>
                 <div className="form-group">
-                  <label className="form-label">Amount column *</label>
-                  <select className="form-select" value={mapping.amount} onChange={e => setMapping(p => ({ ...p, amount: e.target.value }))}>
+                  <label className="form-label" htmlFor="import-amount-column">Amount column *</label>
+                  <select className="form-select" id="import-amount-column" value={mapping.amount} onChange={e => setMapping(p => ({ ...p, amount: e.target.value }))}>
                     <option value="">— not mapped —</option>
                     {headers.map((h, i) => <option key={i} value={h}>{h || `Col ${i+1}`}</option>)}
                   </select>
@@ -1479,8 +1485,8 @@ function ImportModal({ onClose, onSuccess, categories }) {
                   )}
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Type column (Dr/Cr)</label>
-                  <select className="form-select" value={mapping.type} onChange={e => setMapping(p => ({ ...p, type: e.target.value }))}>
+                  <label className="form-label" htmlFor="import-type-column">Type column (Dr/Cr)</label>
+                  <select className="form-select" id="import-type-column" value={mapping.type} onChange={e => setMapping(p => ({ ...p, type: e.target.value }))}>
                     <option value="">— not mapped —</option>
                     {headers.map((h, i) => <option key={i} value={h}>{h || `Col ${i+1}`}</option>)}
                   </select>
@@ -1488,8 +1494,8 @@ function ImportModal({ onClose, onSuccess, categories }) {
               </>)}
 
               <div className="form-group">
-                <label className="form-label">Description / Narration</label>
-                <select className="form-select" value={mapping.description} onChange={e => setMapping(p => ({ ...p, description: e.target.value }))}>
+                <label className="form-label" htmlFor="import-description-column">Description / Narration</label>
+                <select className="form-select" id="import-description-column" value={mapping.description} onChange={e => setMapping(p => ({ ...p, description: e.target.value }))}>
                   <option value="">— not mapped —</option>
                   {headers.map((h, i) => <option key={i} value={h}>{h || `Col ${i+1}`}</option>)}
                 </select>
@@ -1499,27 +1505,31 @@ function ImportModal({ onClose, onSuccess, categories }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Default Category</label>
-                <select className="form-select" value={defaultCategory} onChange={e => setDefaultCategory(e.target.value)}>
+                <label className="form-label" htmlFor="import-default-category">Default Category</label>
+                <select className="form-select" id="import-default-category" value={defaultCategory} onChange={e => setDefaultCategory(e.target.value)}>
                   <option value="">— none —</option>
                   {categories.map((c, i) => <option key={i} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
 
               <div className="form-group" style={{ gridColumn: "1 / -1" }}>
-                <label className="form-label">🏦 Bank / Account <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span></label>
-                <BankSelector value={importBank} onChange={setImportBank}
+                <label className="form-label" htmlFor="import-bank">Bank / Account <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span></label>
+                <BankSelector inputId="import-bank" value={importBank} onChange={setImportBank}
                   placeholder="Select bank for these transactions…" />
               </div>
             </div>
 
             {!splitMode && (
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label className="form-label">Default Transaction Type</label>
-                <select className="form-select" value={defaultType} onChange={e => setDefaultType(e.target.value)}>
+                <label className="form-label" htmlFor="import-default-type">Fallback Transaction Type</label>
+                <select className="form-select" id="import-default-type" value={defaultType} onChange={e => setDefaultType(e.target.value)}>
                   <option value="Debit">Debit (Expense)</option>
                   <option value="Credit">Credit (Income)</option>
+                  <option value="Investment">Investment</option>
                 </select>
+                <span style={{ fontSize:11, color:"var(--text-muted)", marginTop:5, display:"block" }}>
+                  Used only when Dr/Cr columns, signed amounts, and narration do not identify the type automatically.
+                </span>
               </div>
             )}
 
@@ -1532,7 +1542,7 @@ function ImportModal({ onClose, onSuccess, categories }) {
                   <thead>
                     <tr style={{ background: "var(--bg-card)" }}>
                       {headers.map((h, i) => (
-                        <th key={i} style={{ padding: "6px 10px", color: "#555", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{h || `Col ${i+1}`}</th>
+                        <th key={i} style={{ padding: "6px 10px", color: "var(--text-muted)", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{h || `Col ${i+1}`}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1549,12 +1559,12 @@ function ImportModal({ onClose, onSuccess, categories }) {
               </div>
             </details>
 
-            <div className="form-actions">
-              <button className="btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" onClick={buildPreview}
+            <div className="form-actions transaction-workflow-actions">
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="button" onClick={buildPreview}
                 disabled={!mapping.date || (!splitMode && !mapping.amount) || (splitMode && !mapping.withdrawal && !mapping.deposit)}>
                 Preview →
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -1562,6 +1572,11 @@ function ImportModal({ onClose, onSuccess, categories }) {
         {/* ── STEP 3: Preview ── */}
         {step === "preview" && (
           <>
+            {parseError && (
+              <div className="form-error" role="alert" style={{ marginBottom: 12 }}>
+                <AlertTriangle size={14} aria-hidden="true" /> {parseError}
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
                 <strong style={{ color: "azure" }}>{preview.length}</strong> transactions ready to import
@@ -1572,8 +1587,8 @@ function ImportModal({ onClose, onSuccess, categories }) {
                 )}
               </p>
               <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
-                <span style={{ color: "var(--success)" }}>↑ {preview.filter(r => r.type === "Credit").length} credits</span>
-                <span style={{ color: "var(--danger)" }}>↓ {preview.filter(r => r.type === "Debit").length} debits</span>
+                <span style={{ color: "var(--success)", display: "flex", alignItems: "center", gap: 3 }}><ArrowUp size={13} aria-hidden="true" /> {preview.filter(r => r.type === "Credit").length} credits</span>
+                <span style={{ color: "var(--danger)", display: "flex", alignItems: "center", gap: 3 }}><ArrowDown size={13} aria-hidden="true" /> {preview.filter(r => r.type === "Debit").length} debits</span>
               </div>
             </div>
 
@@ -1581,27 +1596,27 @@ function ImportModal({ onClose, onSuccess, categories }) {
             {autoParsed && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Assign Category (optional)</label>
-                  <select className="form-select" value={defaultCategory}
+                  <label className="form-label" htmlFor="pdf-default-category">Assign Category (optional)</label>
+                  <select className="form-select" id="pdf-default-category" value={defaultCategory}
                     onChange={e => {
                       setDefaultCategory(e.target.value);
                       // Re-apply: auto-categorized rows keep their category; others get the fallback
-                      setPreview(prev => prev.map(r => ({ ...r, category: autoCategorize(r.description, r.type) || e.target.value })));
+                      setPreview(prev => prev.map(r => ({ ...r, category: categoryFor(r.description, r.type, e.target.value) })));
                     }}>
                     <option value="">— none —</option>
                     {categories.map((c, i) => <option key={i} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">🏦 Bank / Account</label>
-                  <BankSelector value={importBank} onChange={bank => {
+                  <label className="form-label" htmlFor="pdf-import-bank">Bank / Account</label>
+                  <BankSelector inputId="pdf-import-bank" value={importBank} onChange={bank => {
                     setImportBank(bank);
                     setPreview(prev => prev.map(r => ({ ...r, bank_name: bank })));
                   }} placeholder="Select bank for these transactions…" />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0, background: "rgba(112,153,240,0.07)", border: "1px solid rgba(112,153,240,0.2)", borderRadius: 10, padding: "10px 12px" }}>
-                  <label className="form-label" style={{ marginBottom: 6 }}>📅 Date Format in PDF</label>
-                  <select className="form-select" value={dateFormat}
+                  <label className="form-label" htmlFor="pdf-date-format" style={{ marginBottom: 6 }}>Date format in PDF</label>
+                  <select className="form-select" id="pdf-date-format" value={dateFormat}
                     onChange={e => {
                       const fmt = e.target.value;
                       setDateFormat(fmt);
@@ -1640,7 +1655,7 @@ function ImportModal({ onClose, onSuccess, categories }) {
                 <thead>
                   <tr style={{ background: "var(--bg-card)" }}>
                     {["DATE", "TYPE", "AMOUNT", "DESCRIPTION", "CATEGORY"].map(h => (
-                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "#555", fontWeight: 600, position: "sticky", top: 0, background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>{h}</th>
+                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 600, position: "sticky", top: 0, background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1663,7 +1678,7 @@ function ImportModal({ onClose, onSuccess, categories }) {
                               <span style={{ fontSize: 9, fontWeight: 600, background: "rgba(34,197,94,0.15)", color: "#22c55e", padding: "1px 5px", borderRadius: 4, letterSpacing: "0.3px" }}>AUTO</span>
                             )}
                           </span>
-                        ) : <span style={{ color: "#666" }}>—</span>}
+                        ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
                       </td>
                     </tr>
                   ))}
@@ -1671,14 +1686,15 @@ function ImportModal({ onClose, onSuccess, categories }) {
               </table>
             </div>
 
-            <div className="form-actions">
-              <button className="btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" onClick={handleImport} disabled={loading || preview.length === 0}>
-                {loading ? "Importing…" : `Import ${preview.length} transactions`}
-              </button>
+            <div className="form-actions transaction-workflow-actions">
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="button" onClick={handleImport} disabled={loading || preview.length === 0}>
+                {loading ? <><Loader2 className="animate-spin" aria-hidden="true" />Importing</> : `Import ${preview.length} transactions`}
+              </Button>
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -1706,66 +1722,31 @@ const INDIA_BANKS = [
 ];
 
 // Searchable bank selector component
-function BankSelector({ value, onChange, placeholder = "Select or type bank name…" }) {
-  const [query, setQuery] = React.useState(value || "");
-  const [open, setOpen] = React.useState(false);
-
-  const filtered = query.length < 1
-    ? INDIA_BANKS
-    : INDIA_BANKS.filter(b => b.toLowerCase().includes(query.toLowerCase()));
-
-  const select = (bank) => {
-    setQuery(bank);
-    onChange(bank);
-    setOpen(false);
-  };
+function BankSelector({ value, onChange, placeholder = "Select or type bank name…", inputId, ariaLabel = "Bank or account" }) {
+  const listId = React.useId();
+  const configuredBanks = React.useMemo(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem("moneypot_banks") || "[]"); } catch { return []; }
+  }, []);
+  const availableBanks = configuredBanks.length ? configuredBanks : INDIA_BANKS;
+  const [query, setQuery] = React.useState(value || (typeof window !== "undefined" ? localStorage.getItem("moneypot_default_bank") : "") || "");
+  React.useEffect(() => { if (value !== undefined && value !== query) setQuery(value || ""); }, [value, query]);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div>
       <input
+        id={inputId}
+        aria-label={inputId ? undefined : ariaLabel}
         className="form-input"
         type="text"
+        list={listId}
         placeholder={placeholder}
         value={query}
-        onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value); }}
         autoComplete="off"
+        maxLength={80}
       />
-      {open && filtered.length > 0 && (
-        <div style={{
-          position: "absolute", top: "100%", left: 0, right: 0, zIndex: 999,
-          background: "var(--bg-primary)", border: "1px solid var(--border)",
-          borderRadius: 8, maxHeight: 200, overflowY: "auto", marginTop: 2,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-        }}>
-          {filtered.map(b => (
-            <div key={b}
-              onMouseDown={() => select(b)}
-              style={{
-                padding: "8px 12px", fontSize: 13, cursor: "pointer",
-                color: "var(--text-primary)",
-                background: b === query ? "var(--bg-secondary)" : "transparent",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--bg-secondary)"}
-              onMouseLeave={e => e.currentTarget.style.background = b === query ? "var(--bg-secondary)" : "transparent"}
-            >
-              {b}
-            </div>
-          ))}
-          {query && !INDIA_BANKS.find(b => b.toLowerCase() === query.toLowerCase()) && (
-            <div
-              onMouseDown={() => select(query)}
-              style={{
-                padding: "8px 12px", fontSize: 13, cursor: "pointer",
-                color: "var(--text-muted)", borderTop: "1px solid var(--border)",
-              }}
-            >
-              Use "{query}"
-            </div>
-          )}
-        </div>
-      )}
+      <datalist id={listId}>{availableBanks.map(bank => <option key={bank} value={bank} />)}</datalist>
     </div>
   );
 }
@@ -1773,13 +1754,11 @@ function BankSelector({ value, onChange, placeholder = "Select or type bank name
 
 // ─── Main Transfers Component ─────────────────────────────────
 export default function Transfers(props) {
-  const hasFetchedData = useRef(false);
-  const [markdown, setMarkdown] = useState("Fetching AI insights…");
-  const [aiExpanded, setAiExpanded] = useState(false);
   const [modal, setModal] = useState(null); // null | "add" | "bulk" | "import"
   // Inline edit state
-  const [inlineEdit, setInlineEdit] = useState(null); // transid being edited
-  const [inlineForm, setInlineForm] = useState({});   // draft values
+  const [editingIds, setEditingIds] = useState(new Set()); // transids being edited
+  const [inlineForms, setInlineForms] = useState({});      // draft values keyed by transid
+  const [bulkSaving, setBulkSaving] = useState(false);
   // Bulk delete state
   const [selected, setSelected] = useState(new Set()); // selected transids
 
@@ -1802,19 +1781,14 @@ export default function Transfers(props) {
   const getdata = () => {
     const token = getToken();
     if (!token) return;
-    const endpoints = [
-      { url: "/api/transactions", setState: props.settrans },
-      { url: "/api/creditdebit", setState: props.setcreditdebit },
-      { url: "/api/cattotal", setState: props.setCatamount },
-      { url: "/api/transtable", setState: props.setTranstable },
-    ];
-    endpoints.forEach(({ url, setState }) => {
-      fetch(url, { method: "GET", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` } })
-        .then(r => r.json()).then(setState).catch(console.error);
-    });
+    fetch("/api/bootstrap", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(data => {
+        props.settrans(data.transactions || []);
+        props.setcreditdebit(data.creditdebit || []);
+        props.setCatamount(data.catamount || []);
+        props.setTranstable(data.transtables || []);
+      }).catch(console.error);
   };
-
-  // AI is loaded lazily on first expand of the AI Insights panel
 
   // ── filtered & sorted data
   const displayed = useMemo(() => {
@@ -1855,8 +1829,9 @@ export default function Transfers(props) {
   };
 
   const SortIcon = ({ field }) => {
-    if (sortField !== field) return <span style={{ opacity: 0.2, fontSize: 10 }}> ↕</span>;
-    return <span style={{ fontSize: 10, color: "var(--accent)" }}> {sortDir === "asc" ? "↑" : "↓"}</span>;
+    if (sortField !== field) return <ArrowUpDown size={12} style={{ opacity: 0.2, marginLeft: 4, verticalAlign: -2 }} aria-hidden="true" />;
+    const Icon = sortDir === "asc" ? ArrowUp : ArrowDown;
+    return <Icon size={12} color="var(--accent)" style={{ marginLeft: 4, verticalAlign: -2 }} aria-hidden="true" />;
   };
 
   // ── submit handlers
@@ -1874,30 +1849,135 @@ export default function Transfers(props) {
     else showToast("Failed to add transaction", "error");
   };
 
+  const makeInlineDraft = (item) => ({
+    type: item.type,
+    category: item.category,
+    description: item.description || "",
+    date: item.date,
+    amount: item.type === "Investment" && /redemption/i.test(item.category || "") ? Math.abs(Number(item.amount)) : item.amount,
+    bank_name: item.bank_name || "",
+  });
+
+  const updateInlineForm = (transid, updater) => {
+    setInlineForms(prev => {
+      const current = prev[transid] || {};
+      const next = typeof updater === "function" ? updater(current) : { ...current, ...updater };
+      return { ...prev, [transid]: next };
+    });
+  };
+
+  const closeInlineEdit = (transid) => {
+    setEditingIds(prev => {
+      const next = new Set(prev);
+      next.delete(transid);
+      return next;
+    });
+    setInlineForms(prev => {
+      const next = { ...prev };
+      delete next[transid];
+      return next;
+    });
+  };
+
   // Inline edit: save changed row
   const handleInlineSave = async (transid) => {
     const token = getToken();
-    const body = { ...inlineForm, id: transid };
+    const body = { ...(inlineForms[transid] || {}), id: transid };
     const res = await fetch("/api/edittransaction", {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
     });
-    const { success } = await res.json();
-    if (success) { getdata(); setInlineEdit(null); setInlineForm({}); showToast("Transaction updated"); }
-    else showToast("Failed to update", "error");
+    const data = await res.json().catch(() => ({}));
+    const { success } = data;
+    if (success) { getdata(); closeInlineEdit(transid); showToast("Transaction updated"); }
+    else showToast(data.user || data.error || "Failed to update", "error");
   };
 
   // Open inline edit — populate form from the row data directly (no extra API call)
   const openInlineEdit = (item) => {
-    setInlineEdit(item.transid);
-    setInlineForm({
-      type: item.type,
-      category: item.category,
-      description: item.description || "",
-      date: item.date,
-      amount: item.amount,
-      bank_name: item.bank_name || "",
+    setEditingIds(prev => {
+      const next = new Set(prev);
+      next.add(item.transid);
+      return next;
     });
+    setInlineForms(prev => ({ ...prev, [item.transid]: makeInlineDraft(item) }));
+  };
+
+  const openBulkEdit = () => {
+    if (selected.size === 0) return;
+    const selectedRows = (props.trans || []).filter(item => selected.has(item.transid));
+    setEditingIds(prev => {
+      const next = new Set(prev);
+      selectedRows.forEach(item => next.add(item.transid));
+      return next;
+    });
+    setInlineForms(prev => {
+      const next = { ...prev };
+      selectedRows.forEach(item => {
+        if (!next[item.transid]) next[item.transid] = makeInlineDraft(item);
+      });
+      return next;
+    });
+  };
+
+  const cancelBulkEdit = () => {
+    setEditingIds(prev => {
+      const next = new Set(prev);
+      selected.forEach(transid => next.delete(transid));
+      return next;
+    });
+    setInlineForms(prev => {
+      const next = { ...prev };
+      selected.forEach(transid => delete next[transid]);
+      return next;
+    });
+  };
+
+  const handleBulkEditSave = async () => {
+    const idsToSave = Array.from(selected).filter(transid => editingIds.has(transid));
+    if (idsToSave.length === 0) return;
+    const token = getToken();
+    setBulkSaving(true);
+    let saved = 0;
+    const failed = new Map();
+    try {
+      for (const transid of idsToSave) {
+        try {
+          const res = await fetch("/api/edittransaction", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ ...(inlineForms[transid] || {}), id: transid }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.success) saved += 1;
+          else failed.set(transid, data.user || data.error || `Update failed (${res.status})`);
+        } catch (error) {
+          failed.set(transid, error?.message || "Network error");
+        }
+      }
+      if (saved) getdata();
+      setEditingIds(prev => {
+        const next = new Set(prev);
+        idsToSave.forEach(transid => { if (!failed.has(transid)) next.delete(transid); });
+        return next;
+      });
+      setInlineForms(prev => {
+        const next = { ...prev };
+        idsToSave.forEach(transid => { if (!failed.has(transid)) delete next[transid]; });
+        return next;
+      });
+      if (failed.size) {
+        const firstError = failed.values().next().value;
+        showToast(`Saved ${saved}; ${failed.size} failed and remain editable. ${firstError}`, "error");
+      } else {
+        showToast(`Saved ${saved} transaction${saved === 1 ? "" : "s"}`);
+      }
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to save selected edits", "error");
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   const handleDelete = async (transid) => {
@@ -1918,17 +1998,28 @@ export default function Transfers(props) {
     if (!confirm(`Delete ${selected.size} selected transaction${selected.size > 1 ? "s" : ""}?`)) return;
     const token = getToken();
     let deleted = 0;
+    const failed = new Set();
     for (const transid of selected) {
-      const res = await fetch("/api/deletetransaction", {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ id: transid }),
-      });
-      const { success } = await res.json();
-      if (success) deleted++;
+      try {
+        const res = await fetch("/api/deletetransaction", {
+          method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ id: transid }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) deleted += 1;
+        else failed.add(transid);
+      } catch {
+        failed.add(transid);
+      }
     }
-    setSelected(new Set());
-    getdata();
-    showToast(`Deleted ${deleted} transaction${deleted > 1 ? "s" : ""}`);
+    setSelected(failed);
+    setEditingIds(prev => new Set([...prev].filter(id => failed.has(id))));
+    setInlineForms(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => failed.has(Number(id)))));
+    if (deleted) getdata();
+    showToast(
+      failed.size ? `Deleted ${deleted}; ${failed.size} failed and remain selected.` : `Deleted ${deleted} transaction${deleted === 1 ? "" : "s"}`,
+      failed.size ? "error" : "success"
+    );
   };
 
   // Select all visible (current page)
@@ -1941,6 +2032,7 @@ export default function Transfers(props) {
   };
 
   const uniqueCategories = useMemo(() => [...new Set((props.cate || []).map(c => c.name))], [props.cate]);
+  const selectedEditingCount = Array.from(selected).filter(transid => editingIds.has(transid)).length;
 
   return (
     <div className="transdiv">
@@ -1949,16 +2041,36 @@ export default function Transfers(props) {
         <h1 className="page-title">Transfers</h1>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {selected.size > 0 && (
-            <button className="btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)", fontSize: 13 }}
-              onClick={handleBulkDelete}>
-              🗑 Delete {selected.size} selected
-            </button>
+            <>
+              {selectedEditingCount > 0 ? (
+                <>
+                  <button className="btn-secondary" style={{ color: "var(--success)", borderColor: "rgba(74,222,128,0.45)", fontSize: 13 }}
+                    onClick={handleBulkEditSave} disabled={bulkSaving}>
+                    {bulkSaving ? <Loader2 size={14} className="spin" aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+                    {bulkSaving ? "Saving..." : `Save ${selectedEditingCount} edits`}
+                  </button>
+                  <button className="btn-secondary" style={{ fontSize: 13 }}
+                    onClick={cancelBulkEdit} disabled={bulkSaving}>
+                    <X size={14} aria-hidden="true" /> Cancel edit
+                  </button>
+                </>
+              ) : (
+                <button className="btn-secondary" style={{ fontSize: 13 }}
+                  onClick={openBulkEdit}>
+                  <Edit3 size={14} aria-hidden="true" /> Bulk Edit {selected.size}
+                </button>
+              )}
+              <button className="btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)", fontSize: 13 }}
+                onClick={handleBulkDelete} disabled={bulkSaving}>
+                <Trash2 size={14} aria-hidden="true" /> Delete {selected.size} selected
+              </button>
+            </>
           )}
           <button className="btn-secondary" onClick={() => setModal("import")}>
-            <span>📥</span> Import
+            <ArrowDownToLine size={15} aria-hidden="true" /> Import
           </button>
           <button className="btn-secondary" onClick={() => setModal("bulk")}>
-            <span>⊞</span> Bulk Entry
+            <TableCellsSplit size={15} aria-hidden="true" /> Bulk Entry
           </button>
           <button className="btn-primary" onClick={() => setModal("add")}>
             + Add
@@ -1970,9 +2082,7 @@ export default function Transfers(props) {
       <div className="search-filter-bar">
         <div className="search-wrapper">
           <span className="search-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
+            <Search size={14} strokeWidth={2} aria-hidden="true" />
           </span>
           <input className="search-input" type="text" placeholder="Search by description, category, amount…"
             value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
@@ -1982,6 +2092,7 @@ export default function Transfers(props) {
           <option value="all">All types</option>
           <option value="Debit">Debit</option>
           <option value="Credit">Credit</option>
+          <option value="Investment">Investment</option>
         </select>
         <select className="filter-select" value={filterCategory}
           onChange={e => { setFilterCategory(e.target.value); setPage(1); }}>
@@ -2003,7 +2114,7 @@ export default function Transfers(props) {
       <div className="tableenclosure">
         {displayed.length === 0 ? (
           <div className="empty-state">
-            <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>📊</div>
+            <BarChart3 size={40} style={{ marginBottom: 12, opacity: 0.3 }} aria-hidden="true" />
             <p style={{ fontWeight: 600, marginBottom: 4 }}>No transactions found</p>
             <p style={{ fontSize: 12, opacity: 0.7 }}>Try adjusting your filters or add a new transaction</p>
           </div>
@@ -2013,64 +2124,70 @@ export default function Transfers(props) {
               <tr>
                 <th className="th thsticky" style={{ width: 36, textAlign: "center" }}>
                   <input type="checkbox"
+                    className="transfer-checkbox"
                     checked={pageData.length > 0 && pageData.every(r => selected.has(r.transid))}
                     onChange={toggleSelectAll}
-                    style={{ cursor: "pointer", accentColor: "var(--accent)" }}
-                    title="Select all on this page"
+                    aria-label="Select all transactions on this page"
                   />
                 </th>
-                <th className="th thsticky" style={{ width: 56, cursor: "pointer" }} onClick={() => toggleSort("transid")}>
-                  ID<SortIcon field="transid" />
+                <th className="th thsticky" style={{ width: 56 }}>
+                  <button className="sort-button" onClick={() => toggleSort("transid")} aria-label={`Sort by ID ${sortField === "transid" ? sortDir : ""}`}>ID<SortIcon field="transid" /></button>
                 </th>
-                <th className="th thsticky" style={{ cursor: "pointer" }} onClick={() => toggleSort("type")}>
-                  TYPE<SortIcon field="type" />
+                <th className="th thsticky">
+                  <button className="sort-button" onClick={() => toggleSort("type")} aria-label={`Sort by type ${sortField === "type" ? sortDir : ""}`}>TYPE<SortIcon field="type" /></button>
                 </th>
-                <th className="th thsticky" style={{ cursor: "pointer" }} onClick={() => toggleSort("category")}>
-                  CATEGORY<SortIcon field="category" />
+                <th className="th thsticky">
+                  <button className="sort-button" onClick={() => toggleSort("category")} aria-label={`Sort by category ${sortField === "category" ? sortDir : ""}`}>CATEGORY<SortIcon field="category" /></button>
                 </th>
                 <th className="th thsticky">DESCRIPTION</th>
-                <th className="th thsticky" style={{ cursor: "pointer" }} onClick={() => toggleSort("amount")}>
-                  AMOUNT<SortIcon field="amount" />
+                <th className="th thsticky">
+                  <button className="sort-button" onClick={() => toggleSort("amount")} aria-label={`Sort by amount ${sortField === "amount" ? sortDir : ""}`}>AMOUNT<SortIcon field="amount" /></button>
                 </th>
-                <th className="th thsticky" style={{ cursor: "pointer" }} onClick={() => toggleSort("date")}>
-                  DATE<SortIcon field="date" />
+                <th className="th thsticky">
+                  <button className="sort-button" onClick={() => toggleSort("date")} aria-label={`Sort by date ${sortField === "date" ? sortDir : ""}`}>DATE<SortIcon field="date" /></button>
                 </th>
-                <th className="th thsticky" style={{ cursor: "pointer" }} onClick={() => toggleSort("bank_name")}>
-                  BANK<SortIcon field="bank_name" />
+                <th className="th thsticky">
+                  <button className="sort-button" onClick={() => toggleSort("bank_name")} aria-label={`Sort by bank ${sortField === "bank_name" ? sortDir : ""}`}>BANK<SortIcon field="bank_name" /></button>
                 </th>
                 <th className="th thsticky" style={{ width: 90 }}></th>
               </tr>
             </thead>
             <tbody>
+              <AnimatePresence initial={false}>
               {pageData.map((item, i) => {
-                const isEditing = inlineEdit === item.transid;
+                const isEditing = editingIds.has(item.transid);
                 const isSelected = selected.has(item.transid);
-                const editingType = isEditing ? (inlineForm.type || item.type) : item.type;
+                const draft = inlineForms[item.transid] || makeInlineDraft(item);
+                const editingType = isEditing ? (draft.type || item.type) : item.type;
                 return (
-                  <tr key={i} style={{ background: isSelected ? "rgba(99,153,34,0.06)" : isEditing ? "var(--bg-secondary)" : "" }}>
+                  <motion.tr key={item.transid} layout="position"
+                    initial={{ opacity:0, y:-8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, x:-16 }}
+                    transition={{ duration:.22, delay:Math.min(i, 8) * .018, ease:easeOut }}
+                    style={{ background: isEditing ? "var(--bg-secondary)" : isSelected ? "rgba(99,153,34,0.06)" : "" }}>
                     {/* Checkbox */}
                     <td className="th" style={{ textAlign: "center", width: 36 }}>
-                      <input type="checkbox" checked={isSelected}
+                      <input type="checkbox" className="transfer-checkbox" checked={isSelected}
+                        aria-label={`Select transaction ${item.transid}`}
                         onChange={() => setSelected(prev => {
                           const n = new Set(prev);
                           n.has(item.transid) ? n.delete(item.transid) : n.add(item.transid);
                           return n;
                         })}
-                        style={{ cursor: "pointer", accentColor: "var(--accent)" }}
                       />
                     </td>
                     {/* ID */}
-                    <td className="th" style={{ color: "#555", fontFamily: "DM Mono, monospace", fontSize: 11 }}>
+                    <td className="th" style={{ color: "var(--text-muted)", fontFamily: "DM Mono, monospace", fontSize: 11 }}>
                       #{item.transid}
                     </td>
                     {/* Type */}
                     <td className="th">
                       {isEditing ? (
-                        <select className="bulk-select" value={inlineForm.type}
-                          onChange={e => setInlineForm(f => ({ ...f, type: e.target.value, category: "" }))}
-                          style={{ fontSize: 12, padding: "3px 6px", height: 28 }}>
+                        <select className="bulk-select" aria-label={`Type for transaction ${item.transid}`} value={draft.type}
+                          onChange={e => updateInlineForm(item.transid, f => ({ ...f, type: e.target.value, category: "" }))}
+                          style={{ fontSize: 12, padding: "3px 6px", height: 36 }}>
                           <option value="Debit">Debit</option>
                           <option value="Credit">Credit</option>
+                          <option value="Investment">Investment</option>
                         </select>
                       ) : (
                         <span className={`badge badge-${item.type?.toLowerCase()}`}>{item.type}</span>
@@ -2079,10 +2196,13 @@ export default function Transfers(props) {
                     {/* Category */}
                     <td className="th" style={{ color: "#ccc" }}>
                       {isEditing ? (
-                        <select className="bulk-select" value={inlineForm.category}
-                          onChange={e => setInlineForm(f => ({ ...f, category: e.target.value }))}
-                          style={{ fontSize: 12, padding: "3px 6px", height: 28, minWidth: 110 }}>
+                        <select className="bulk-select" aria-label={`Category for transaction ${item.transid}`} value={draft.category}
+                          onChange={e => updateInlineForm(item.transid, f => ({ ...f, category: e.target.value }))}
+                          style={{ fontSize: 12, padding: "3px 6px", height: 36, minWidth: 110 }}>
                           <option value="">— select —</option>
+                          {draft.type === item.type && draft.category === item.category
+                            && !(props.cate || []).some(c => c.type === editingType && c.name === draft.category)
+                            && <option value={draft.category}>{draft.category} (existing)</option>}
                           {(props.cate || []).filter(c => c.type === editingType).map((c, ci) => (
                             <option key={ci} value={c.name}>{c.name}</option>
                           ))}
@@ -2092,9 +2212,9 @@ export default function Transfers(props) {
                     {/* Description */}
                     <td className="th">
                       {isEditing ? (
-                        <input className="bulk-input" type="text" value={inlineForm.description}
-                          onChange={e => setInlineForm(f => ({ ...f, description: e.target.value }))}
-                          style={{ fontSize: 12, padding: "3px 6px", height: 28, minWidth: 160 }}
+                        <input className="bulk-input" aria-label={`Description for transaction ${item.transid}`} type="text" maxLength={300} value={draft.description}
+                          onChange={e => updateInlineForm(item.transid, f => ({ ...f, description: e.target.value }))}
+                          style={{ fontSize: 12, padding: "3px 6px", height: 36, minWidth: 160 }}
                           placeholder="Description…"
                         />
                       ) : (
@@ -2104,27 +2224,28 @@ export default function Transfers(props) {
                     {/* Amount */}
                     <td className="th amount-cell" style={{ color: item.type === "Credit" ? "var(--success)" : "var(--danger)" }}>
                       {isEditing ? (
-                        <input className="bulk-input" type="number" min="0" step="0.01" value={inlineForm.amount}
-                          onChange={e => setInlineForm(f => ({ ...f, amount: e.target.value }))}
-                          style={{ fontSize: 12, padding: "3px 6px", height: 28, width: 90 }}
+                        <input className="bulk-input" aria-label={`Amount for transaction ${item.transid}`} type="number" min="0" step="0.01" value={draft.amount}
+                          onChange={e => updateInlineForm(item.transid, f => ({ ...f, amount: e.target.value }))}
+                          style={{ fontSize: 12, padding: "3px 6px", height: 36, width: 90 }}
                         />
                       ) : `₹${parseFloat(item.amount || 0).toFixed(2)}`}
                     </td>
                     {/* Date */}
                     <td className="th" style={{ color: "#999", fontFamily: "DM Mono, monospace", fontSize: 12 }}>
                       {isEditing ? (
-                        <input className="bulk-input" type="date" value={inlineForm.date}
-                          onChange={e => setInlineForm(f => ({ ...f, date: e.target.value }))}
-                          style={{ fontSize: 12, padding: "3px 6px", height: 28 }}
+                        <DatePicker className="bulk-input" ariaLabel={`Date for transaction ${item.transid}`} value={draft.date}
+                          onChange={e => updateInlineForm(item.transid, f => ({ ...f, date: e.target.value }))}
+                          style={{ fontSize: 12, padding: "3px 6px", height: 36 }}
                         />
                       ) : item.date}
                     </td>
                     {/* Bank */}
-                    <td className="th" style={{ color: "#666", fontSize: 12, maxWidth: 120 }}>
+                    <td className="th" style={{ color: "var(--text-muted)", fontSize: 12, maxWidth: 120 }}>
                       {isEditing ? (
                         <BankSelector
-                          value={inlineForm.bank_name || ""}
-                          onChange={bank => setInlineForm(f => ({ ...f, bank_name: bank }))}
+                          ariaLabel={`Bank for transaction ${item.transid}`}
+                          value={draft.bank_name || ""}
+                          onChange={bank => updateInlineForm(item.transid, f => ({ ...f, bank_name: bank }))}
                           placeholder="Bank…"
                         />
                       ) : (
@@ -2143,40 +2264,31 @@ export default function Transfers(props) {
                       <div className="editbutton">
                         {isEditing ? (
                           <>
-                            <button className="btn-ghost" title="Save" style={{ color: "var(--success)" }}
+                            <button className="btn-ghost" aria-label={`Save transaction ${item.transid}`} style={{ color: "var(--success)" }}
                               onClick={() => handleInlineSave(item.transid)}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <polyline points="20 6 9 17 4 12"/>
-                              </svg>
+                              <Check size={14} strokeWidth={2.5} aria-hidden="true" />
                             </button>
-                            <button className="btn-ghost" title="Cancel"
-                              onClick={() => { setInlineEdit(null); setInlineForm({}); }}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                              </svg>
+                            <button className="btn-ghost" aria-label={`Cancel editing transaction ${item.transid}`}
+                              onClick={() => closeInlineEdit(item.transid)}>
+                              <X size={14} strokeWidth={2} aria-hidden="true" />
                             </button>
                           </>
                         ) : (
                           <>
-                            <button className="btn-ghost" title="Edit" onClick={() => openInlineEdit(item)}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                              </svg>
+                            <button className="btn-ghost" aria-label={`Edit transaction ${item.transid}`} onClick={() => openInlineEdit(item)}>
+                              <Edit3 size={14} strokeWidth={2} aria-hidden="true" />
                             </button>
-                            <button className="btn-ghost btn-danger-ghost" title="Delete" onClick={() => handleDelete(item.transid)}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
-                                <path d="M9 6V4h6v2"/>
-                              </svg>
+                            <button className="btn-ghost btn-danger-ghost" aria-label={`Delete transaction ${item.transid}`} onClick={() => handleDelete(item.transid)}>
+                              <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
                             </button>
                           </>
                         )}
                       </div>
                     </td>
-                  </tr>
+                  </motion.tr>
                 );
               })}
+              </AnimatePresence>
             </tbody>
           </table>
         )}
@@ -2190,87 +2302,24 @@ export default function Transfers(props) {
             {selected.size > 0 && <span style={{ marginLeft: 10, color: "var(--accent)", fontWeight: 500 }}>{selected.size} selected</span>}
           </span>
           <div className="pagination-controls">
-            <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+            <button className="page-btn" aria-label="Previous transaction page" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               const pg = page <= 3 ? i + 1 : page - 2 + i;
               if (pg < 1 || pg > totalPages) return null;
               return (
-                <button key={pg} className={`page-btn ${pg === page ? "active" : ""}`}
+                <button key={pg} className={`page-btn ${pg === page ? "active" : ""}`} aria-label={`Transaction page ${pg}`} aria-current={pg === page ? "page" : undefined}
                   onClick={() => setPage(pg)}>{pg}</button>
               );
             })}
-            <button className="page-btn" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+            <button className="page-btn" aria-label="Next transaction page" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</button>
           </div>
         </div>
       )}
-
-      {/* AI Insights — collapsed by default, click header to expand */}
-      <div className="aigen-section">
-        <div className={`aigen-card${aiExpanded ? " aigen-expanded" : ""}`}>
-          <div className="aigen-header" onClick={() => {
-            setAiExpanded(e => {
-              // On first expand, trigger fetch if still showing placeholder
-              if (!e && markdown === "Fetching AI insights…") {
-                const token = getToken();
-                setMarkdown("⏳ Analysing your transactions…");
-                fetch("/api/ai", { method: "GET", headers: {
-                    Authorization: `Bearer ${token}`,
-                    "X-Ollama-Url":   localStorage.getItem("ollama_url")   || "http://localhost:11434",
-                    "X-Ollama-Model": localStorage.getItem("ollama_model") || "llama3.2",
-                  } })
-                  .then(async r => {
-                    const text = await r.text();
-                    let d;
-                    try { d = JSON.parse(text); } catch { d = text; }
-                    if (typeof d === "object" && d !== null && d.error) setMarkdown("⚠️ " + d.error);
-                    else if (typeof d === "string" && d.trim()) setMarkdown(d);
-                    else setMarkdown("⚠️ Empty response. Check Settings → AI / Ollama.");
-                  })
-                  .catch(() => setMarkdown("⚠️ Could not reach Ollama."));
-              }
-              return !e;
-            });
-          }}>
-            <span className="aigen-title">✦ AI Insights</span>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              {aiExpanded && (
-                <button className="btn-ghost" style={{ fontSize:11, width:"auto", padding:"3px 9px" }}
-                  onClick={e => {
-                    e.stopPropagation();
-                    const token = getToken();
-                    setMarkdown("⏳ Analysing your transactions…");
-                    fetch("/api/ai", { method: "GET", headers: {
-                        Authorization: `Bearer ${token}`,
-                        "X-Ollama-Url":   localStorage.getItem("ollama_url")   || "http://localhost:11434",
-                        "X-Ollama-Model": localStorage.getItem("ollama_model") || "llama3.2",
-                      } })
-                      .then(async r => {
-                        const text = await r.text();
-                        let d;
-                        try { d = JSON.parse(text); } catch { d = text; }
-                        if (typeof d === "object" && d !== null && d.error) setMarkdown("⚠️ " + d.error);
-                        else if (typeof d === "string" && d.trim()) setMarkdown(d);
-                        else setMarkdown("⚠️ Empty response. Check Settings → AI / Ollama.");
-                      })
-                      .catch(() => setMarkdown("⚠️ Could not reach Ollama."));
-                  }}>↺ Refresh</button>
-              )}
-              <span className="aigen-chevron">▼</span>
-            </div>
-          </div>
-          <div className="aigenerated">
-            <div><ReactMarkdown>{markdown}</ReactMarkdown></div>
-          </div>
-        </div>
-      </div>
 
       {/* Modals */}
       {modal === "add" && (
         <TransactionForm title="Add Transaction" categories={props.cate || []}
           onSubmit={handleAdd} onClose={() => setModal(null)} />
-      )}
-      {modal === "edit" && editData && (
-        {/* Edit is now inline — this modal case is no longer used */}
       )}
       {modal === "bulk" && (
         <BulkForm categories={props.cate || []} onClose={() => setModal(null)}

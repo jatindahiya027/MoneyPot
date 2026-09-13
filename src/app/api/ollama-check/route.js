@@ -1,15 +1,27 @@
-// Checks Ollama connectivity and lists available models
+import { authenticateRequest } from "@/libs/auth";
+import { findOllamaModels, getOllamaModel, getOllamaOrigin, selectOllamaModel } from "@/libs/ollama";
+
 export async function GET(req) {
-  const url = req.headers.get("X-Ollama-Url") || "http://localhost:11434";
+  const payload = await authenticateRequest(req);
+  if (!payload) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  let url;
+  let preferred;
   try {
-    const res = await fetch(`${url}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
+    url = getOllamaOrigin(req);
+    preferred = getOllamaModel(req);
+  }
+  catch (error) { return Response.json({ ok: false, error: error.message }, { status: 400 }); }
+  try {
+    const found = selectOllamaModel(await findOllamaModels(url), preferred);
+    return Response.json({
+      ok: true,
+      models: found.models.map(model => model.name),
+      modelDetails: found.models,
+      recommended: found.recommended,
+      selected: found.selected,
+      preferredAvailable: found.preferredAvailable,
     });
-    if (!res.ok) return new Response(JSON.stringify({ ok: false, error: `HTTP ${res.status}` }), { status: 200, headers: { "Content-Type": "application/json" } });
-    const data = await res.json();
-    const models = (data.models || []).map(m => m.name);
-    return new Response(JSON.stringify({ ok: true, models }), { status: 200, headers: { "Content-Type": "application/json" } });
-  } catch (err) {
-    return new Response(JSON.stringify({ ok: false, error: `Cannot connect to Ollama at ${url}` }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (error) {
+    return Response.json({ ok: false, error: `${error.message}. Cannot connect to Ollama at ${url}.` }, { status: 503 });
   }
 }

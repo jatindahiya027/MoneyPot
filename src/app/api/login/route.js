@@ -1,25 +1,38 @@
 import { getDb } from "@/libs/db";
-import { SignJWT } from "jose";
 import { NextResponse } from "next/server";
-import { getJwtSecretKey } from "@/libs/auth";
 import bcrypt from "bcryptjs";
+import { createSessionResponse } from "@/libs/session";
+import { checkRateLimit, requestIdentity } from "@/libs/rateLimit";
+import { normalizeEmail } from "@/libs/userIdentity.mjs";
+
+const DUMMY_HASH = "$2a$12$dLwtm3jUkSMMxDpBFEbAV.zqIMsX21gvyenpLfDY307aVv6oMz28i";
 
 export async function POST(request) {
   const body = await request.json();
 
-  if (!body.username || !body.password) {
+  const userid = Number(body.userid);
+  const email = normalizeEmail(body.username);
+  const accountKey = Number.isInteger(userid) && userid > 0 ? `id:${userid}` : `mail:${email}`;
+  const rate = checkRateLimit(`login:${requestIdentity(request)}:${accountKey}`, 8, 10 * 60 * 1000);
+  if (!rate.allowed) {
+    return NextResponse.json({ success: false, error: "Too many sign-in attempts. Try again shortly." }, {
+      status: 429,
+      headers: { "Retry-After": String(rate.retryAfter) },
+    });
+  }
+
+  if ((!email && !(Number.isInteger(userid) && userid > 0)) || !body.password) {
     return NextResponse.json({ success: false }, { status: 400 });
   }
 
   const db = await getDb();
-  const user = await db.get(
-    "SELECT userid, mail, password FROM users WHERE mail = ?",
-    [body.username]
-  );
+  const user = Number.isInteger(userid) && userid > 0
+    ? await db.get("SELECT userid,name,mail,password FROM users WHERE userid=?", [userid])
+    : await db.get("SELECT userid,name,mail,password FROM users WHERE lower(mail)=?", [email]);
 
   if (!user) {
     // Constant-time response — prevents user enumeration via timing
-    await bcrypt.compare("dummy", "$2b$12$invalidhashpadding000000000000000000000000000000000000.");
+    await bcrypt.compare(String(body.password), DUMMY_HASH);
     return NextResponse.json({ success: false }, { status: 401 });
   }
 
@@ -28,28 +41,5 @@ export async function POST(request) {
     return NextResponse.json({ success: false }, { status: 401 });
   }
 
-  const token = await new SignJWT({ username: body.username, id: user.userid })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d")
-    .sign(getJwtSecretKey());
-
-  const response = NextResponse.json(
-    { success: true, token },   // ← token in body so client JS can store it
-    { status: 200 }
-  );
-
-  // HttpOnly cookie used by Next.js middleware for server-side route protection.
-  // Client-side fetch calls use the token from localStorage (set by login page via setToken).
-  response.cookies.set({
-    name: "token",
-    value: token,
-    path: "/",
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7,
-  });
-
-  return response;
+  return createSessionResponse(user, { auth_method: "password" });
 }

@@ -25,11 +25,22 @@ export async function POST(req) {
   );
   if (!link) return NextResponse.json({ success: false }, { status: 404 });
 
-  await db.run("DELETE FROM transactions WHERE transid=?", [id]);
-  await db.run(
-    "DELETE FROM users_transcation_link WHERE userid=? AND transid=?",
-    [payload.id, id]
-  );
+  await db.exec("BEGIN IMMEDIATE");
+  try {
+    await db.run(
+      "DELETE FROM users_transcation_link WHERE userid=? AND transid=?",
+      [payload.id, id]
+    );
+    const remaining = await db.get(
+      "SELECT 1 FROM users_transcation_link WHERE transid=? LIMIT 1",
+      [id]
+    );
+    if (!remaining) await db.run("DELETE FROM transactions WHERE transid=?", [id]);
+    await db.exec("COMMIT");
+  } catch (error) {
+    await db.exec("ROLLBACK").catch(() => {});
+    throw error;
+  }
 
   return NextResponse.json({ success: true });
 }

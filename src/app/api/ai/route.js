@@ -1,5 +1,6 @@
 import { getDb } from "@/libs/db";
 import { verifyJwtToken } from "@/libs/auth";
+import { findOllamaModels, normalizeOllamaModel, normalizeOllamaOrigin, selectOllamaModel } from "@/libs/ollama";
 
 async function authenticate(req) {
   const authHeader = req.headers.get("Authorization");
@@ -14,8 +15,8 @@ function compressTransactions(rows) {
   // Only keep fields the LLM needs
   return rows.map(r => ({
     d: r.date,
-    t: r.type === "Credit" ? "C" : "D",
-    c: r.category,
+    t: r.type === "Credit" ? "C" : r.type === "Investment" ? "I" : "D",
+    c: String(r.category || "").replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 80),
     a: Number(r.amount),
     ...(r.description ? { n: r.description.slice(0, 30) } : {}),
   }));
@@ -25,8 +26,10 @@ function compressTransactions(rows) {
 function buildPrompt(rows) {
   const credits = rows.filter(r => r.t === "C");
   const debits  = rows.filter(r => r.t === "D");
+  const investments = rows.filter(r => r.t === "I");
   const totalIn  = credits.reduce((s, r) => s + r.a, 0);
   const totalOut = debits.reduce((s, r) => s + r.a, 0);
+  const totalInvested = investments.reduce((s, r) => s + r.a, 0);
 
   // Category breakdown
   const catMap = {};
@@ -39,7 +42,7 @@ function buildPrompt(rows) {
 
   // Recent 20 transactions as minimal CSV
   const recent = rows.slice(-20)
-    .map(r => `${r.d},${r.t === "C" ? "+" : "-"}${r.a},${r.c}`)
+    .map(r => `${r.d},${r.t},${r.a},${r.c}`)
     .join("\n");
 
   return `You are a personal finance assistant. Analyze this data and give a concise, actionable summary (max 200 words, 3 sections).
@@ -48,12 +51,13 @@ Period: last 3 months
 Total income: ₹${totalIn}
 Total expenses: ₹${totalOut}
 Net: ₹${totalIn - totalOut}
+Net invested: ₹${totalInvested}
 Transactions: ${rows.length}
 
 Top expense categories:
 ${catLines || "  (none)"}
 
-Recent transactions (date,+/-amount,category):
+Recent transactions (date,type C/D/I,amount,category):
 ${recent || "  (none)"}
 
 Give: 1) spending pattern, 2) biggest concern, 3) one tip.`;
@@ -63,11 +67,24 @@ export async function GET(req) {
   const payload = await authenticate(req);
   if (!payload) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
 
-  // Read Ollama settings from request headers (passed by client)
-  const ollamaUrl   = req.headers.get("X-Ollama-Url")   || "http://localhost:11434";
-  const ollamaModel = req.headers.get("X-Ollama-Model")  || "llama3.2";
-
+  // Account preferences are authoritative. Resolve the saved model against the
+  // models currently installed in Ollama so removed/renamed models recover.
   const db = await getDb();
+  let ollamaUrl;
+  let ollamaModel;
+  try {
+    const preferences = await db.get(
+      "SELECT ollama_url,ollama_model FROM user_preferences WHERE userid=?",
+      [payload.id]
+    ) || {};
+    ollamaUrl = normalizeOllamaOrigin(preferences.ollama_url);
+    const preferred = normalizeOllamaModel(preferences.ollama_model);
+    const found = selectOllamaModel(await findOllamaModels(ollamaUrl), preferred);
+    if (!found.selected) throw new Error("No installed Ollama models were found. Pull a model in Settings first.");
+    ollamaModel = found.selected;
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 503, headers: { "Content-Type": "application/json" } });
+  }
 
   // Only last 3 months to limit token usage
   const threeMonthsAgo = new Date();

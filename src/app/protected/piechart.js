@@ -1,7 +1,7 @@
 "use client";
 import { memo, useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip } from "recharts";
-import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
+import { ChartContainer } from "@/components/ui/chart";
 
 const PALETTE = [
   "#5a82e1","#4ade80","#f87171","#fbbf24","#a78bfa",
@@ -39,14 +39,14 @@ function PieTooltip({ active, payload }) {
 }
 
 const Piec = memo(function Piec({ catamount }) {
-  const { items, total, chartConfig } = useMemo(() => {
-    if (!catamount?.length) return { items: [], total: 0, chartConfig: {} };
+  const { items, chartConfig } = useMemo(() => {
+    if (!catamount?.length) return { items: [], chartConfig: {} };
     const total = catamount.filter(c => c.amount > 0).reduce((s, c) => s + c.amount, 0);
     const items = catamount
       .filter(c => c.amount > 0)
       .map((c, i) => ({
         ...c,
-        fill: PALETTE[i % PALETTE.length],
+        fill: /^#[0-9a-f]{6}$/i.test(c.fill || "") ? c.fill : PALETTE[i % PALETTE.length],
         pct: total > 0 ? ((c.amount / total) * 100).toFixed(1) : "0.0",
       }));
 
@@ -55,7 +55,7 @@ const Piec = memo(function Piec({ catamount }) {
       items.map(c => [c.category, { label: c.category, color: c.fill }])
     );
 
-    return { items, total, chartConfig };
+    return { items, chartConfig };
   }, [catamount]);
 
   if (!items.length) {
@@ -67,32 +67,31 @@ const Piec = memo(function Piec({ catamount }) {
   }
 
   return (
-    <ChartContainer config={chartConfig} className="w-full" style={{ height: 160 }}>
-      <PieChart>
-        <Pie
-          data={items} dataKey="amount" nameKey="category"
-          cx="50%" cy="50%" innerRadius={42} outerRadius={62}
-          strokeWidth={2} stroke="var(--bg-card)"
-          paddingAngle={2}
-        >
-          {items.map((entry, i) => (
-            <Cell key={i} fill={entry.fill} />
-          ))}
-        </Pie>
-        <Tooltip content={<PieTooltip />} />
-      </PieChart>
-      {/* Compact legend */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 8px", marginTop: 6, justifyContent: "center" }}>
-        {items.slice(0, 6).map((item, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9 }}>
-            <div style={{ width: 7, height: 7, borderRadius: 2, background: item.fill, flexShrink: 0 }} />
-            <span style={{ color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 52 }}>
-              {item.category}
-            </span>
+    <div className="category-chart">
+      <ChartContainer config={chartConfig} className="category-chart-plot">
+        <PieChart>
+          <Pie
+            data={items} dataKey="amount" nameKey="category"
+            cx="50%" cy="50%" innerRadius={42} outerRadius={62}
+            strokeWidth={2} stroke="var(--bg-card)"
+            paddingAngle={2}
+          >
+            {items.map((entry, i) => (
+              <Cell key={i} fill={entry.fill} />
+            ))}
+          </Pie>
+          <Tooltip content={<PieTooltip />} />
+        </PieChart>
+      </ChartContainer>
+      <div className="category-chart-legend" aria-label="Category legend">
+        {items.map((item, i) => (
+          <div className="category-chart-legend-item" key={i} title={item.category}>
+            <span className="category-chart-swatch" style={{ background: item.fill }} />
+            <span>{item.category}</span>
           </div>
         ))}
       </div>
-    </ChartContainer>
+    </div>
   );
 });
 

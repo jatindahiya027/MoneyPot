@@ -9,25 +9,27 @@ async function authenticate(req) {
 }
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
-const UNAUTH = new Response(JSON.stringify({ error: "Unauthorized" }), {
+const unauthorized = () => new Response(JSON.stringify({ error: "Unauthorized" }), {
   status: 401, headers: { "Content-Type": "application/json" },
 });
 
 // GET — all-time per-bank totals
 export async function GET(req) {
   const payload = await authenticate(req);
-  if (!payload) return UNAUTH;
+  if (!payload) return unauthorized();
   const db = await getDb();
 
   const rows = await db.all(`
     SELECT
       COALESCE(NULLIF(TRIM(t.bank_name), ''), 'Unknown') AS bank,
-      SUM(CASE WHEN t.type = 'Credit' THEN t.amount ELSE 0 END) AS credit,
-      SUM(CASE WHEN t.type = 'Debit'  THEN t.amount ELSE 0 END) AS debit,
+      ROUND(SUM(CASE WHEN t.type = 'Credit' THEN t.amount ELSE 0 END),2) AS credit,
+      ROUND(SUM(CASE WHEN t.type = 'Debit'  THEN t.amount ELSE 0 END),2) AS debit,
+      ROUND(SUM(CASE WHEN t.type = 'Investment' THEN t.amount ELSE 0 END),2) AS investment,
       COUNT(*) AS count
     FROM transactions t
     JOIN users_transcation_link l ON t.transid = l.transid
     WHERE l.userid = ?
+      AND lower(COALESCE(t.category, '')) NOT LIKE '%self%'
     GROUP BY bank
     ORDER BY (credit + debit) DESC
   `, [payload.id]);
@@ -40,22 +42,24 @@ export async function GET(req) {
 // POST — per-bank totals filtered by date range
 export async function POST(req) {
   const payload = await authenticate(req);
-  if (!payload) return UNAUTH;
+  if (!payload) return unauthorized();
   const db = await getDb();
   const { StartDate, EndDate } = await req.json();
 
-  const startDate = ISO_RE.test(StartDate) ? StartDate : "2000-01-01";
+  const startDate = ISO_RE.test(StartDate) ? StartDate : "";
   const endDate   = ISO_RE.test(EndDate)   ? EndDate   : "2099-12-31";
 
   const rows = await db.all(`
     SELECT
       COALESCE(NULLIF(TRIM(t.bank_name), ''), 'Unknown') AS bank,
-      SUM(CASE WHEN t.type = 'Credit' THEN t.amount ELSE 0 END) AS credit,
-      SUM(CASE WHEN t.type = 'Debit'  THEN t.amount ELSE 0 END) AS debit,
+      ROUND(SUM(CASE WHEN t.type = 'Credit' THEN t.amount ELSE 0 END),2) AS credit,
+      ROUND(SUM(CASE WHEN t.type = 'Debit'  THEN t.amount ELSE 0 END),2) AS debit,
+      ROUND(SUM(CASE WHEN t.type = 'Investment' THEN t.amount ELSE 0 END),2) AS investment,
       COUNT(*) AS count
     FROM transactions t
     JOIN users_transcation_link l ON t.transid = l.transid
     WHERE l.userid = ? AND t.date BETWEEN ? AND ?
+      AND lower(COALESCE(t.category, '')) NOT LIKE '%self%'
     GROUP BY bank
     ORDER BY (credit + debit) DESC
   `, [payload.id, startDate, endDate]);

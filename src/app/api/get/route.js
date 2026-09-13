@@ -13,6 +13,6 @@ export async function GET(req) {
   const payload = await authenticate(req);
   if (!payload) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
   const db = await getDb();
-  const items = await db.all("SELECT * FROM users WHERE userid = ?", [payload.id]);
+  const items = await db.all("SELECT userid, name, age, mail, image FROM users WHERE userid = ?", [payload.id]);
   return new Response(JSON.stringify(items), { headers: { "Content-Type": "application/json" }, status: 200 });
 }

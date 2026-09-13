@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { Lock, Mail } from "lucide-react";
 
 function ResetForm() {
   const router = useRouter();
@@ -65,7 +66,7 @@ function ResetForm() {
   return (
     <div className="login">
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:32 }}>
-        <Image alt="logo" src="/logo.png" height={40} width={40} />
+        <Image alt="logo" src="/logo-pot-only.png" height={40} width={40} />
         <span style={{ fontSize:22, fontWeight:700, letterSpacing:"-0.5px" }}>MoneyPot</span>
       </div>
 
@@ -91,14 +92,14 @@ function ResetForm() {
             <div>
               <p style={{ fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>New password</p>
               <label className="label" style={{ width:"100%", maxWidth:"100%" }}>
-                <Image alt="lock" src="/padlock.png" height={26} width={26} style={{ opacity:0.6 }} />
+                <Lock size={26} strokeWidth={1.8} style={{ opacity:0.6, flexShrink:0 }} aria-hidden="true" />
                 <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" required />
               </label>
             </div>
             <div>
               <p style={{ fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>Confirm password</p>
               <label className="label" style={{ width:"100%", maxWidth:"100%" }}>
-                <Image alt="lock" src="/padlock.png" height={26} width={26} style={{ opacity:0.6 }} />
+                <Lock size={26} strokeWidth={1.8} style={{ opacity:0.6, flexShrink:0 }} aria-hidden="true" />
                 <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repeat password" required />
               </label>
             </div>
@@ -118,15 +119,14 @@ function ResetForm() {
         <form onSubmit={handleForgot} className="loginform">
           <p className="loginhead">Reset password</p>
           <p style={{ fontSize:13, color:"var(--text-muted)", marginBottom:24, marginTop:-18, textAlign:"center" }}>
-            Enter your email. The reset link appears in the server console (or your inbox if SMTP is set up in .env).
+            Enter your account email. In the desktop app, the reset link will appear here.
           </p>
           {message ? (
             <div style={{ padding:"12px 16px", background:"rgba(52,211,153,0.1)", border:"1px solid rgba(52,211,153,0.3)", borderRadius:8, fontSize:13, color:"#34d399", width:"100%", maxWidth:300, textAlign:"center", marginBottom:16 }}>
               {message}
               {devUrl && (
                 <div style={{ marginTop:10 }}>
-                  <p style={{ fontSize:11, opacity:0.8, marginBottom:4 }}>Dev mode — click to reset:</p>
-                  <a href={devUrl} style={{ color:"#34d399", fontSize:11, wordBreak:"break-all" }}>{devUrl}</a>
+                  <a href={devUrl} style={{ color:"#34d399", fontSize:12 }}>Continue to password reset</a>
                 </div>
               )}
             </div>
@@ -135,7 +135,7 @@ function ResetForm() {
               <div style={{ width:"100%", maxWidth:300 }}>
                 <p style={{ fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>Email</p>
                 <label className="label" style={{ width:"100%", maxWidth:"100%" }}>
-                  <Image alt="email" src="/email.png" height={26} width={26} style={{ opacity:0.6 }} />
+                  <Mail size={26} strokeWidth={1.8} style={{ opacity:0.6, flexShrink:0 }} aria-hidden="true" />
                   <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" required />
                 </label>
               </div>

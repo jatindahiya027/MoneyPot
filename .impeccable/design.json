@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-12T00:00:00.000Z",
+  "title": "Design System: MoneyPot",
+  "extensions": {
+    "colorMeta": {
+      "primary-blue": { "role": "primary", "displayName": "Control Blue", "canonical": "#5a82e1", "tonalRamp": ["#101a31", "#1d315e", "#29498d", "#3d65ba", "#5a82e1", "#87a5eb", "#b4c8f3", "#e2eafb"] },
+      "canvas": { "role": "neutral", "displayName": "Night Canvas", "canonical": "#0b0d10", "tonalRamp": ["#090a0c", "#181a1e", "#2d3035", "#484c53", "#686d75", "#94989e", "#c4c6c9", "#f2f2f3"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Page and dialog titles." },
+      "amount": { "displayName": "Financial Amount", "purpose": "Currency totals and comparative values." }
+    },
+    "shadows": [{ "name": "overlay", "value": "0 14px 36px rgba(0,0,0,0.36)", "purpose": "Floating date pickers and overlays only." }],
+    "motion": [{ "name": "state", "value": "150ms ease-out", "purpose": "Hover, focus, and selected-state feedback." }],
+    "breakpoints": [{ "name": "mobile", "value": "640px" }, { "name": "compact", "value": "900px" }]
+  },
+  "components": [
+    { "name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "Primary workflow action.", "html": "<button class=\"ds-btn-primary\">Save changes</button>", "css": ".ds-btn-primary{height:40px;padding:0 16px;border:0;border-radius:10px;background:#5a82e1;color:#fff;font:600 14px DM Sans,sans-serif;transition:background 150ms ease,transform 150ms ease}.ds-btn-primary:hover{background:#7099f0}.ds-btn-primary:focus-visible{outline:2px solid #5a82e1;outline-offset:2px}.ds-btn-primary:active{transform:scale(.98)}" },
+    { "name": "Text Input", "kind": "input", "refersTo": "input", "description": "Canonical form field.", "html": "<input class=\"ds-input\" placeholder=\"Transaction description\">", "css": ".ds-input{height:40px;width:280px;padding:0 12px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:#181818;color:#f0ffff;font:400 14px DM Sans,sans-serif}.ds-input:focus{border-color:#5a82e1;outline:0;box-shadow:0 0 0 3px rgba(90,130,225,.15)}" },
+    { "name": "Ledger Card", "kind": "card", "refersTo": "card", "description": "Financial summary container.", "html": "<section class=\"ds-card\"><span>Net savings</span><strong>₹24,580</strong></section>", "css": ".ds-card{display:flex;flex-direction:column;gap:8px;padding:20px;border:1px solid rgba(255,255,255,.075);border-radius:14px;background:#181818;color:#f0ffff;font:500 13px DM Sans,sans-serif}.ds-card strong{font:700 21px DM Mono,monospace}" }
+  ],
+  "narrative": {
+    "northStar": "The Financial Control Desk",
+    "overview": "MoneyPot is a focused workspace for sensitive personal finance data. Data receives emphasis while controls remain restrained and familiar.",
+    "keyCharacteristics": ["Calm dark surfaces", "Tabular financial values", "Compact accessible controls", "Structural borders", "Predictable responsive navigation"],
+    "rules": [
+      { "name": "The Data Owns Color Rule", "body": "Blue marks interaction; green, red, and amber mark financial meaning.", "section": "colors" },
+      { "name": "The Structural Depth Rule", "body": "Resting cards use a border or tonal contrast, never decorative wide shadows.", "section": "elevation" }
+    ],
+    "dos": ["Do preserve Control Blue as the only interaction accent.", "Do use visible keyboard focus."],
+    "donts": ["Don't use playful consumer-fintech decoration.", "Don't alter graph implementations or graph colors."]
+  }
+}

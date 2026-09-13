@@ -1,0 +1,40 @@
+name: Build desktop releases
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            command: npm run electron:build:mac:x64
+            artifact: mac-x64
+          - os: macos-15
+            command: npm run electron:build:mac:arm64
+            artifact: mac-arm64
+          - os: windows-latest
+            command: npm run electron:build:win:x64
+            artifact: win-x64
+          - os: windows-11-arm
+            command: npm run electron:build:win:arm64
+            artifact: win-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:sqlite3
+      - run: npm run test:finance
+      - run: ${{ matrix.command }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist-electron/*

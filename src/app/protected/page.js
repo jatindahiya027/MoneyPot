@@ -1,75 +1,38 @@
 "use client";
-import { getToken, clearToken } from "@/libs/clientToken";
-import { useState, useEffect } from "react";
+import { clearToken, getToken } from "@/libs/clientToken";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
+import { BarChart3, Calculator, Grid3X3, LayoutDashboard, Menu, Settings, TrendingUp, WalletCards } from "lucide-react";
 import Dashboard from "./dashboard";
-import Transfers from "./transfers";
-import Categories from "./categories";
 import { useRouter } from "next/navigation";
-import Setting from "./setting";
-import BudgetPlanner from "./budget";
-import Analysis from "./analysis";
-import MonthTrend from "./monthtrend";
+import { AnimatePresence, Motion } from "@/components/ui/motion";
+import { PinLock, PinSetupDialog } from "@/components/pin-lock";
 
-// Nav icon SVGs
-const Icons = {
-  dashboard: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-      <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-    </svg>
-  ),
-  transfers: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 3L4 7l4 4"/><path d="M4 7h16"/><path d="M16 21l4-4-4-4"/><path d="M20 17H4"/>
-    </svg>
-  ),
-  categories: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 6h16M4 12h16M4 18h16"/>
-    </svg>
-  ),
-  settings: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-    </svg>
-  ),
-  budget: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-    </svg>
-  ),
-
-  trends: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-    </svg>
-  ),
-};
+const sectionLoading = () => <div className="section-loading" role="status">Loading section…</div>;
+const Transfers = dynamic(() => import("./transfers"), { loading: sectionLoading });
+const Categories = dynamic(() => import("./categories"), { loading: sectionLoading });
+const Setting = dynamic(() => import("./setting"), { loading: sectionLoading });
+const BudgetPlanner = dynamic(() => import("./budget"), { loading: sectionLoading });
+const Analysis = dynamic(() => import("./analysis"), { loading: sectionLoading });
+const MonthTrend = dynamic(() => import("./monthtrend"), { loading: sectionLoading });
 
 const navItems = [
-  { key: "component1", icon: "/dashboards.png",   label: "Dashboard",  svgIcon: Icons.dashboard  },
-  { key: "component2", icon: "/data-transfer.png", label: "Transfers",  svgIcon: Icons.transfers  },
-  { key: "component3", icon: "/menu.png",          label: "Categories", svgIcon: Icons.categories },
-  { key: "component5", icon: "/calculator.png",    label: "Budget",     svgIcon: Icons.budget     },
-  { key: "component6", icon: "/bar-chart.png",     label: "Analysis",   svgIcon: Icons.trends     },
-  { key: "component7", icon: "/bar-chart.png",     label: "Trends",     svgIcon: Icons.trends     },
-  { key: "component4", icon: "/setting.png",       label: "Settings",   svgIcon: Icons.settings   },
+  { key: "component1", label: "Dashboard",  Icon: LayoutDashboard },
+  { key: "component2", label: "Transfers",  Icon: WalletCards },
+  { key: "component3", label: "Categories", Icon: Grid3X3 },
+  { key: "component5", label: "Budget",     Icon: Calculator },
+  { key: "component6", label: "Analysis",   Icon: BarChart3 },
+  { key: "component7", label: "Trends",     Icon: TrendingUp },
+  { key: "component4", label: "Settings",   Icon: Settings },
 ];
 
-function toDateStr(val) {
-  if (!val) return "";
-  if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-  try {
-    const d = val instanceof Date ? val : new Date(val);
-    if (isNaN(d)) return "";
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  } catch { return ""; }
-}
+const defaultPreferences = {
+  default_bank: "",
+  banks: "[]",
+  ollama_url: "http://127.0.0.1:11434",
+  ollama_model: "llama3.2",
+};
 
 export default function Board() {
   const router = useRouter();
@@ -82,30 +45,151 @@ export default function Board() {
   const [creditdebit, setCreditdebit] = useState([]);
   const [banktrend, setBanktrend] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [preferences, setPreferences] = useState(defaultPreferences);
+  const [sessionToken, setSessionToken] = useState("");
+  const [security, setSecurity] = useState(null);
+  const [lockState, setLockState] = useState("checking");
+  const [lockBusy, setLockBusy] = useState(false);
+  const [lockError, setLockError] = useState("");
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [pinSetupBusy, setPinSetupBusy] = useState(false);
+  const [pinSetupError, setPinSetupError] = useState("");
 
   // ── Date range lifted here so it survives tab switches
   // EndDate defaults to far future so future-dated transactions are never excluded.
   // "Today" as a default silently drops any transaction dated after today.
-  const [startDate, setStartDate] = useState("2000-01-01");
+  const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("2099-12-31");
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) { router.push("/"); return; }
-    const endpoints = [
-      { url: "/api/get",          setState: setItems        },
-      { url: "/api/transactions", setState: setTransactions },
-      { url: "/api/category",     setState: setCategory     },
-      { url: "/api/cattotal",     setState: setCatamount    },
-      { url: "/api/creditdebit",  setState: setCreditdebit  },
-      { url: "/api/banktrend",     setState: setBanktrend    },
-      { url: "/api/transtable",   setState: setTranstable   },
-    ];
-    endpoints.forEach(({ url, setState }) => {
-      fetch(url, { method: "GET", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
-        .then(r => r.json()).then(setState).catch(console.error);
+    let cancelled = false;
+    const resolveSessionAndLock = async () => {
+      let token = getToken();
+      if (!token) {
+        const session = await fetch("/api/session", { credentials: "include" });
+        if (!session.ok) { router.replace("/"); return; }
+        token = "cookie";
+      }
+      const securityResponse = await fetch("/api/pin/preferences", { headers: { Authorization: `Bearer ${token}` } });
+      if (!securityResponse.ok) throw new Error("Unable to load security preferences");
+      const securityData = await securityResponse.json();
+      if (cancelled) return;
+      const savedSecurity = securityData.security;
+      const recentAuthentication = sessionStorage.getItem("moneypot_recent_auth") === "1";
+      if (recentAuthentication) sessionStorage.removeItem("moneypot_recent_auth");
+      setSessionToken(token);
+      setSecurity(savedSecurity);
+      setLockState(savedSecurity?.pin_enabled && !recentAuthentication ? "locked" : "unlocked");
+    };
+    resolveSessionAndLock().catch(error => {
+      console.error(error);
+      if (!cancelled) router.replace("/");
     });
-  }, []);
+    return () => { cancelled = true; };
+  }, [router]);
+
+  useEffect(() => {
+    if (!sessionToken || lockState !== "unlocked" || workspaceReady) return;
+    let cancelled = false;
+    const loadWorkspace = async () => {
+      const token = sessionToken;
+      const response = await fetch("/api/bootstrap", { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error("Unable to load workspace");
+      const data = await response.json();
+      if (cancelled) return;
+      setItems(data.user || []);
+      setTransactions(data.transactions || []);
+      setCategory(data.categories || []);
+      setCatamount(data.catamount || []);
+      setCreditdebit(data.creditdebit || []);
+      setBanktrend(data.banktrend || []);
+      setTranstable(data.transtables || []);
+      setPreferences(data.preferences || defaultPreferences);
+      const earliestDate = (data.transactions || []).reduce((earliest, row) => {
+        const date = String(row.date || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return earliest;
+        return !earliest || date < earliest ? date : earliest;
+      }, "");
+      setStartDate(current => current || earliestDate);
+      localStorage.setItem("moneypot_banks", data.preferences?.banks || "[]");
+      localStorage.setItem("moneypot_default_bank", data.preferences?.default_bank || "");
+      localStorage.setItem("ollama_url", data.preferences?.ollama_url || defaultPreferences.ollama_url);
+      localStorage.setItem("ollama_model", data.preferences?.ollama_model || defaultPreferences.ollama_model);
+      setWorkspaceReady(true);
+    };
+    loadWorkspace().catch(error => { console.error(error); router.replace("/"); });
+    return () => { cancelled = true; };
+  }, [lockState, router, sessionToken, workspaceReady]);
+
+  const savePinPreference = useCallback(async (action, payload = {}) => {
+    const response = await fetch("/api/pin/preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) throw new Error(data.error || "Could not save PIN settings.");
+    setSecurity(data.security);
+    return data.security;
+  }, [sessionToken]);
+
+  const setQuickUnlockPin = useCallback(async (pin) => {
+    return savePinPreference("set", { pin });
+  }, [savePinPreference]);
+
+  const disableQuickUnlockPin = useCallback(async () => {
+    return savePinPreference("disable");
+  }, [savePinPreference]);
+
+  const handleUnlock = async (pin) => {
+    setLockBusy(true);
+    setLockError("");
+    try {
+      const response = await fetch("/api/pin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userid: security.userid, pin }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || "PIN unlock failed.");
+      setSessionToken("cookie");
+      setLockState("unlocked");
+    } catch (error) {
+      setLockError(error?.message || "PIN unlock failed.");
+    } finally {
+      setLockBusy(false);
+    }
+  };
+
+  const handlePasswordFallback = async () => {
+    clearToken();
+    await fetch("/api/logout", { method: "POST" }).catch(() => {});
+    router.replace("/?mode=password");
+  };
+
+  const handlePinSetup = async (pin) => {
+    setPinSetupBusy(true);
+    setPinSetupError("");
+    try {
+      await setQuickUnlockPin(pin);
+    } catch (error) {
+      setPinSetupError(error?.message || "Could not save the PIN.");
+    } finally {
+      setPinSetupBusy(false);
+    }
+  };
+
+  const dismissPinSetup = async () => {
+    setPinSetupBusy(true);
+    setPinSetupError("");
+    try {
+      await savePinPreference("dismiss");
+    } catch (error) {
+      setPinSetupError(error?.message || "Could not save this preference.");
+    } finally {
+      setPinSetupBusy(false);
+    }
+  };
 
   // Close sidebar when nav item selected on mobile
   const handleNav = (key) => {
@@ -121,15 +205,16 @@ export default function Board() {
           setTranstable={setTranstable} setCatamount={setCatamount} setCreditdebit={setCreditdebit}
           startDate={startDate} setStartDate={setStartDate}
           endDate={endDate} setEndDate={setEndDate}
-          banktrend={banktrend} setBanktrend={setBanktrend} />
+          banktrend={banktrend} setBanktrend={setBanktrend} preferences={preferences} />
       case "component2":
-        return <Transfers trans={transactions} cate={category} settrans={setTransactions}
+        return <Transfers trans={transactions} cate={category} preferences={preferences} settrans={setTransactions}
           setcreditdebit={setCreditdebit} setTranstable={setTranstable} setCatamount={setCatamount} />;
       case "component3":
         return <Categories cate={category} setCategory={setCategory}
           setCatamount={setCatamount} setTransactions={setTransactions} />;
       case "component4":
-        return <Setting user={items} setUser={setItems} />;
+        return <Setting user={items} setUser={setItems} preferences={preferences} setPreferences={setPreferences}
+          security={security} onSetPin={setQuickUnlockPin} onDisablePin={disableQuickUnlockPin} />;
       case "component5":
         return <BudgetPlanner categories={category} />;
       case "component6":
@@ -140,6 +225,22 @@ export default function Board() {
         return null;
     }
   };
+
+  if (lockState === "locked") {
+    return <PinLock profile={security} busy={lockBusy} error={lockError}
+      onUnlock={handleUnlock} onPassword={handlePasswordFallback} />;
+  }
+
+  if (lockState === "checking" || !workspaceReady) {
+    return (
+      <main className="pin-screen pin-loading" aria-live="polite">
+        <Image alt="" src="/logo-pot-only.png" width={44} height={44} priority />
+        <p>Preparing MoneyPot…</p>
+      </main>
+    );
+  }
+
+  const showPinSetup = Boolean(security && !security.pin_prompted);
 
   return (
     <div className="wrapper">
@@ -152,21 +253,19 @@ export default function Board() {
       {/* Sidebar */}
       <div className={`types ${sidebarOpen ? "open" : ""}`}>
         <div className="heading">
-          <Image alt="logo" src="/logo.png" height={32} width={32} />
+          <Image alt="logo" src="/logo-pot-only.png" height={32} width={32} />
           <h1 className="headname">MoneyPot</h1>
         </div>
         <div className="sidebar-divider" />
         <div className="spacemaker">
-          {navItems.map(({ key, icon, label }) => (
+          {navItems.map(({ key, label, Icon }) => (
             <button
               key={key}
               className={`button ${activeComponent === key ? "active" : ""}`}
               onClick={() => handleNav(key)}
+              aria-current={activeComponent === key ? "page" : undefined}
             >
-              <Image
-                alt={label} src={icon} height={16} width={16}
-                style={{ opacity: activeComponent === key ? 1 : 0.5 }}
-              />
+              <Icon size={16} strokeWidth={2} style={{ opacity: activeComponent === key ? 1 : 0.5 }} aria-hidden="true" />
               <p>{label}</p>
             </button>
           ))}
@@ -174,44 +273,44 @@ export default function Board() {
       </div>
 
       {/* Main content — includes mobile top bar */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" }}>
+      <div className="app-main">
         {/* Mobile top bar */}
-        <div style={{
-          display:"none", alignItems:"center", justifyContent:"space-between",
-          padding:"12px 16px", borderBottom:"1px solid var(--border)",
-          flexShrink:0, background:"var(--bg-primary)",
-        }} className="mobile-topbar">
-          <button className="hamburger" onClick={() => setSidebarOpen(true)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
+        <div className="mobile-topbar">
+          <button className="hamburger" onClick={() => setSidebarOpen(true)} aria-label="Open navigation">
+            <Menu size={18} strokeWidth={2} aria-hidden="true" />
           </button>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <Image alt="logo" src="/logo.png" height={24} width={24} />
-            <span style={{ fontWeight:600, fontSize:15 }}>MoneyPot</span>
+          <div className="mobile-brand">
+            <Image alt="logo" src="/logo-pot-only.png" height={24} width={24} />
+            <span>MoneyPot</span>
           </div>
-          <div style={{ width:36 }} />
+          <div className="mobile-topbar-spacer" />
         </div>
 
         {/* Page */}
-        <div style={{ flex:1, overflow:"auto", minHeight:0, display:"flex", flexDirection:"column" }}>
-          {renderComponent()}
-        </div>
+        <main className="app-content">
+          <AnimatePresence mode="wait" initial={false}>
+            <Motion key={activeComponent}>{renderComponent()}</Motion>
+          </AnimatePresence>
+        </main>
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="mobile-nav">
-        {navItems.map(({ key, label, svgIcon }) => (
+      <nav className="mobile-nav" aria-label="Primary navigation">
+        {navItems.map(({ key, label, Icon }) => (
           <button
             key={key}
             className={`mobile-nav-item ${activeComponent === key ? "active" : ""}`}
             onClick={() => handleNav(key)}
+            aria-current={activeComponent === key ? "page" : undefined}
           >
-            {svgIcon}
+            <Icon size={18} strokeWidth={2} aria-hidden="true" />
             <span>{label}</span>
           </button>
         ))}
       </nav>
+
+      <PinSetupDialog open={showPinSetup} busy={pinSetupBusy} error={pinSetupError}
+        onSave={handlePinSetup} onDismiss={dismissPinSetup} />
     </div>
   );
 }

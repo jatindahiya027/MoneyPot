@@ -2,10 +2,12 @@
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { memo, useMemo } from "react";
 import { ChartContainer } from "@/components/ui/chart";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 const chartConfig = {
-  Credit: { label: "Income",  color: "var(--success)" },
-  Debit:  { label: "Expense", color: "var(--danger)"  },
+  Credit: { label: "Credit", color: "var(--success)" },
+  Debit: { label: "Debit", color: "var(--danger)" },
+  Investment: { label: "Investment", color: "var(--warning)" },
 };
 
 // Colour palette for up to 8 banks
@@ -36,12 +38,13 @@ function fmtRupee(n) {
 function DayTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
 
-  // The raw row object is in payload[0].payload — it has `banks: [{bank,credit,debit}]`
-  const row    = payload[0]?.payload || {};
+  // The raw row object is in payload[0].payload.
+  const row = payload[0]?.payload || {};
   const credit = row.Credit || 0;
-  const debit  = row.Debit  || 0;
-  const net    = credit - debit;
-  const banks  = row.banks || [];
+  const debit = row.Debit || 0;
+  const investment = row.Investment || 0;
+  const net = credit - debit;
+  const banks = row.banks || [];
 
   return (
     <div style={{
@@ -72,10 +75,11 @@ function DayTooltip({ active, payload, label }) {
                 }} />
                 <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: 11 }}>{b.bank}</span>
               </div>
-              {/* Bank credit/debit */}
-              <div style={{ display: "flex", gap: 12, paddingLeft: 14 }}>
-                <span style={{ color: "var(--success)" }}>↑ {fmtRupee(b.credit)}</span>
-                <span style={{ color: "var(--danger)" }}>↓ {fmtRupee(b.debit)}</span>
+              {/* Bank credit/debit/investment */}
+              <div style={{ display: "flex", gap: 12, paddingLeft: 14, flexWrap: "wrap" }}>
+                <span style={{ color: "var(--success)", display: "inline-flex", alignItems: "center", gap: 3 }}><ArrowUp size={12} aria-hidden="true" /> {fmtRupee(b.credit)}</span>
+                <span style={{ color: "var(--danger)", display: "inline-flex", alignItems: "center", gap: 3 }}><ArrowDown size={12} aria-hidden="true" /> {fmtRupee(b.debit)}</span>
+                <span style={{ color: "var(--warning)", display: "inline-flex", alignItems: "center", gap: 3 }}><ArrowUp size={12} aria-hidden="true" /> {fmtRupee(b.investment)}</span>
               </div>
             </div>
           ))}
@@ -90,7 +94,7 @@ function DayTooltip({ active, payload, label }) {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--success)", display: "inline-block" }} />
-            <span style={{ color: "var(--text-muted)" }}>Total Income</span>
+            <span style={{ color: "var(--text-muted)" }}>Total Credit</span>
           </span>
           <span style={{ fontWeight: 700, color: "var(--success)", fontFamily: "DM Mono, monospace" }}>
             {fmtRupee(credit)}
@@ -99,10 +103,19 @@ function DayTooltip({ active, payload, label }) {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--danger)", display: "inline-block" }} />
-            <span style={{ color: "var(--text-muted)" }}>Total Expense</span>
+            <span style={{ color: "var(--text-muted)" }}>Total Debit</span>
           </span>
           <span style={{ fontWeight: 700, color: "var(--danger)", fontFamily: "DM Mono, monospace" }}>
             {fmtRupee(debit)}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning)", display: "inline-block" }} />
+            <span style={{ color: "var(--text-muted)" }}>Net Investment</span>
+          </span>
+          <span style={{ fontWeight: 700, color: "var(--warning)", fontFamily: "DM Mono, monospace" }}>
+            {fmtRupee(investment)}
           </span>
         </div>
       </div>
@@ -156,6 +169,10 @@ const Areac = memo(function Areac({ transtables }) {
             <stop offset="5%"  stopColor="var(--danger)"  stopOpacity={0.28} />
             <stop offset="95%" stopColor="var(--danger)"  stopOpacity={0}    />
           </linearGradient>
+          <linearGradient id="ginvestment" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor="var(--warning)" stopOpacity={0.22} />
+            <stop offset="95%" stopColor="var(--warning)" stopOpacity={0}    />
+          </linearGradient>
         </defs>
         <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.04)" />
         <XAxis
@@ -180,6 +197,12 @@ const Areac = memo(function Areac({ transtables }) {
           fill="url(#gdebit)" stroke="var(--danger)" strokeWidth={1.5}
           dot={false}
           activeDot={{ r: 4, fill: "var(--danger)", stroke: "var(--bg-card)", strokeWidth: 2 }}
+        />
+        <Area
+          dataKey="Investment" name="Investment" type="monotone"
+          fill="url(#ginvestment)" stroke="var(--warning)" strokeWidth={1.5}
+          dot={false}
+          activeDot={{ r: 4, fill: "var(--warning)", stroke: "var(--bg-card)", strokeWidth: 2 }}
         />
       </AreaChart>
     </ChartContainer>

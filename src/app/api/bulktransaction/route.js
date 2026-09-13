@@ -1,17 +1,7 @@
 import { getDb } from "@/libs/db";
 import { verifyJwtToken } from "@/libs/auth";
 import { NextResponse } from "next/server";
-
-function toISODate(raw) {
-  if (!raw) return null;
-  const s = String(raw).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const dmy4 = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
-  if (dmy4) { const [,d,m,y] = dmy4; return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`; }
-  const d = new Date(s);
-  if (!isNaN(d)) return d.toISOString().split("T")[0];
-  return null;
-}
+import { normalizeTransactionInput } from "@/libs/transactionValidation";
 
 // POST /api/bulktransaction — accepts { rows: [...] } and inserts all in one transaction
 export async function POST(req) {
@@ -30,27 +20,36 @@ export async function POST(req) {
   }
 
   const db = await getDb();
-  let inserted = 0;
+  const categories = await db.all(`
+    SELECT c.type, lower(c.name) AS name
+    FROM categories c JOIN users_category_link l ON l.categorykid=c.categoryid
+    WHERE l.userid=?
+  `, [payload.id]);
+  const allowedCategories = new Set(categories.map(category => `${category.type}\u0000${category.name}`));
+  const normalizedRows = [];
+  const errors = [];
+  rows.forEach((row, index) => {
+    const normalized = normalizeTransactionInput(row);
+    if (normalized.error) errors.push({ row: index + 1, error: normalized.error });
+    else if (!allowedCategories.has(`${normalized.value.type}\u0000${normalized.value.category.toLowerCase()}`)) {
+      errors.push({ row: index + 1, error: "Category is unavailable for this transaction type." });
+    } else normalizedRows.push(normalized.value);
+  });
+  if (errors.length) {
+    return NextResponse.json({ success: false, error: "Import validation failed.", errors: errors.slice(0, 20) }, { status: 400 });
+  }
 
-  // Run inside a SQLite transaction for atomicity and performance
-  await db.run("BEGIN");
+  await db.run("BEGIN IMMEDIATE");
   try {
-    for (const row of rows) {
-      const amount = parseFloat(row.amount);
-      const date   = toISODate(row.date);
-      if (!date || isNaN(amount) || amount < 0) continue;
-      if (!["Debit","Credit"].includes(row.type)) continue;
-
-      const bank = String(row.bank_name || "").trim().slice(0, 80);
+    for (const row of normalizedRows) {
       const result = await db.run(
         "INSERT INTO transactions (type, category, description, date, amount, bank_name) VALUES (?,?,?,?,?,?)",
-        [row.type, row.category || "", row.description || "", date, amount, bank]
+        [row.type, row.category, row.description, row.date, row.amount, row.bank_name]
       );
       await db.run(
         "INSERT INTO users_transcation_link (userid, transid) VALUES (?,?)",
         [payload.id, result.lastID]
       );
-      inserted++;
     }
     await db.run("COMMIT");
   } catch (err) {
@@ -58,5 +57,5 @@ export async function POST(req) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, inserted });
+  return NextResponse.json({ success: true, inserted: normalizedRows.length });
 }

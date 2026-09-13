@@ -1,6 +1,7 @@
 import { getDb } from "@/libs/db";
 import { verifyJwtToken } from "@/libs/auth";
 import { NextResponse } from "next/server";
+import { userHasCategory } from "@/libs/transactionValidation";
 
 async function auth(req) {
   const h = req.headers.get("Authorization");
@@ -9,18 +10,19 @@ async function auth(req) {
   return token ? await verifyJwtToken(token) : null;
 }
 
-const UNAUTH = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+const unauthorized = () => NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+const validMonth = value => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(value || ""));
 
 // GET /api/budget?month=YYYY-MM  — fetch budgets + actual spend for that month
 export async function GET(req) {
   const payload = await auth(req);
-  if (!payload) return UNAUTH;
+  if (!payload) return unauthorized();
 
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month") || new Date().toISOString().slice(0, 7);
 
   // Validate YYYY-MM
-  if (!/^\d{4}-\d{2}$/.test(month)) {
+  if (!validMonth(month)) {
     return NextResponse.json({ error: "Invalid month format" }, { status: 400 });
   }
 
@@ -60,13 +62,13 @@ export async function GET(req) {
 // POST /api/budget — upsert a budget { category, month, amount }
 export async function POST(req) {
   const payload = await auth(req);
-  if (!payload) return UNAUTH;
+  if (!payload) return unauthorized();
 
   const { category, month, amount } = await req.json();
   if (!category || !month || amount === undefined) {
     return NextResponse.json({ error: "category, month, amount required" }, { status: 400 });
   }
-  if (!/^\d{4}-\d{2}$/.test(month)) {
+  if (!validMonth(month)) {
     return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
   }
   const amt = parseFloat(amount);
@@ -75,6 +77,9 @@ export async function POST(req) {
   }
 
   const db = await getDb();
+  if (!(await userHasCategory(db, payload.id, "Debit", String(category).trim()))) {
+    return NextResponse.json({ error: "Choose an available expense category" }, { status: 400 });
+  }
   await db.run(
     `INSERT INTO budget (userid, category, month, amount)
      VALUES (?, ?, ?, ?)
@@ -88,9 +93,10 @@ export async function POST(req) {
 // DELETE /api/budget — delete { category, month }
 export async function DELETE(req) {
   const payload = await auth(req);
-  if (!payload) return UNAUTH;
+  if (!payload) return unauthorized();
 
   const { category, month } = await req.json();
+  if (!category || !validMonth(month)) return NextResponse.json({ error: "Invalid category or month" }, { status: 400 });
   const db = await getDb();
   await db.run(
     "DELETE FROM budget WHERE userid=? AND category=? AND month=?",

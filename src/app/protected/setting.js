@@ -1,13 +1,27 @@
 "use client";
-import { getToken, clearToken } from "@/libs/clientToken";
-import { memo, useState, useDeferredValue, useEffect, useCallback } from "react";
+import { clearToken, getToken } from "@/libs/clientToken";
+import { memo, useState, useDeferredValue, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, BarChart3, Building2, Camera, Check, Download, FileDown, KeyRound, Mail, Paperclip, Plus, ShieldCheck, Trash2, User, UserRound, X } from "lucide-react";
+import DatePicker from "@/components/ui/date-picker";
+import { AnimatePresence, easeOut, motion, useReducedMotion } from "@/components/ui/motion";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { PinSetupDialog } from "@/components/pin-lock";
 
 const LS_URL   = "ollama_url";
 const LS_MODEL = "ollama_model";
 
-const Setting = memo(function Setting({ user, setUser }) {
+const Setting = memo(function Setting({
+  user,
+  setUser,
+  preferences,
+  setPreferences,
+  security,
+  onSetPin,
+  onDisablePin,
+}) {
   const router = useRouter();
   const [file, setFile] = useState(null);
   const deferredQuery = useDeferredValue(user[0]);
@@ -18,46 +32,81 @@ const Setting = memo(function Setting({ user, setUser }) {
   const [page, setPage] = useState("page0");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
+  const [banks, setBanks] = useState(() => { try { return JSON.parse(preferences?.banks || "[]"); } catch { return []; } });
+  const [defaultBank, setDefaultBank] = useState(preferences?.default_bank || "");
+  const [newBank, setNewBank] = useState("");
+  const [securityBusy, setSecurityBusy] = useState(false);
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [securityError, setSecurityError] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const reduceMotion = useReducedMotion();
 
   // ── Ollama state
-  const [ollamaUrl,   setOllamaUrl]   = useState("http://localhost:11434");
+  const [ollamaUrl,   setOllamaUrl]   = useState("http://127.0.0.1:11434");
   const [ollamaModel, setOllamaModel] = useState("llama3.2");
+  const [ollamaSaving, setOllamaSaving] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState(null); // null | "checking" | { ok, models?, error? }
   const [availableModels, setAvailableModels] = useState([]);
+  const [modelDetails, setModelDetails] = useState([]);
+  const ollamaAutoChecked = useRef(false);
 
-  // Load from localStorage on mount
+  // Account preferences are authoritative. Local storage is read only as a
+  // compatibility fallback for installations that predate database persistence.
   useEffect(() => {
     const u = localStorage.getItem(LS_URL);
     const m = localStorage.getItem(LS_MODEL);
-    if (u) setOllamaUrl(u);
-    if (m) setOllamaModel(m);
-  }, []);
+    setOllamaUrl(preferences?.ollama_url || u || "http://127.0.0.1:11434");
+    setOllamaModel(preferences?.ollama_model || m || "llama3.2");
+  }, [preferences?.ollama_model, preferences?.ollama_url]);
 
-  const saveOllamaPrefs = () => {
-    localStorage.setItem(LS_URL,   ollamaUrl);
-    localStorage.setItem(LS_MODEL, ollamaModel);
-    showToast("Ollama settings saved");
+  const saveOllamaPrefs = async () => {
+    setOllamaSaving(true);
+    try {
+      const response = await fetch("/api/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ ollama_url: ollamaUrl, ollama_model: ollamaModel }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || "Could not save Ollama settings");
+      setPreferences?.(data.preferences);
+      localStorage.setItem(LS_URL, data.preferences.ollama_url);
+      localStorage.setItem(LS_MODEL, data.preferences.ollama_model);
+      showToast("Ollama settings saved");
+    } catch (error) {
+      showToast(error?.message || "Could not save Ollama settings", "error");
+    } finally {
+      setOllamaSaving(false);
+    }
   };
 
   const checkOllama = useCallback(async () => {
     setOllamaStatus("checking");
     try {
       const res = await fetch("/api/ollama-check", {
-        headers: { "X-Ollama-Url": ollamaUrl },
+        headers: { "X-Ollama-Url": ollamaUrl, "X-Ollama-Model": ollamaModel },
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Ollama connection check failed");
       setOllamaStatus(data);
-      if (data.ok && data.models?.length) {
-        setAvailableModels(data.models);
-        // Auto-select first model if current isn't in list
-        if (!data.models.includes(ollamaModel)) {
-          setOllamaModel(data.models[0]);
-        }
-      }
-    } catch {
-      setOllamaStatus({ ok: false, error: "Request failed" });
+      setAvailableModels(data.ok && Array.isArray(data.models) ? data.models : []);
+      setModelDetails(data.ok && Array.isArray(data.modelDetails) ? data.modelDetails : []);
+    } catch (error) {
+      setOllamaStatus({ ok: false, error: error?.message || "Request failed" });
     }
-  }, [ollamaUrl, ollamaModel]);
+  }, [ollamaModel, ollamaUrl]);
+
+  useEffect(() => {
+    if (page === "page2" && !ollamaAutoChecked.current) {
+      ollamaAutoChecked.current = true;
+      checkOllama();
+    }
+  }, [checkOllama, page]);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -74,6 +123,11 @@ const Setting = memo(function Setting({ user, setUser }) {
   const handleFileChange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
+    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(f.type) || f.size > 5 * 1024 * 1024) {
+      showToast("Choose a JPEG, PNG, GIF, or WebP image under 5 MB", "error");
+      e.target.value = "";
+      return;
+    }
     setFile(f);
     // Show a local preview immediately so the user sees the new image before saving
     const localUrl = URL.createObjectURL(f);
@@ -85,52 +139,134 @@ const Setting = memo(function Setting({ user, setUser }) {
     const token = getToken();
     if (!token) { router.push("/"); return; }
     setSaving(true);
+    let uploadedImage = "";
     try {
       let img = image;
       if (file) {
         const formData = new FormData();
         formData.append("file", file);
         const res = await fetch("/api/upload", { method: "POST", body: formData });
-        if (res.ok) {
-          const result = await res.json();
-          img = result.Message;
-          setImage(img);
-        }
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok || !result.Message) throw new Error(result.error || "Image upload failed");
+        img = result.Message;
+        uploadedImage = img;
+        setImage(img);
       }
       const res = await fetch("/api/edituser", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name, age, mail, img }),
       });
-      const { success } = await res.json();
+      const result = await res.json().catch(() => ({}));
+      const { success } = result;
       if (success) { getdata(); showToast("Profile updated"); }
-      else showToast("Failed to update profile", "error");
-    } catch { showToast("An error occurred", "error"); }
+      else throw new Error(result.user || result.error || "Failed to update profile");
+    } catch (error) {
+      if (uploadedImage) {
+        await fetch(`/api/upload?file=${encodeURIComponent(uploadedImage)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }
+      showToast(error?.message || "An error occurred", "error");
+    }
     setSaving(false);
   };
 
   const downloadCSV = async () => {
     const token = getToken();
     if (!token) { router.push("/"); return; }
+    if (exportStartDate && exportEndDate && exportStartDate > exportEndDate) {
+      showToast("Start date must be before end date", "error");
+      return;
+    }
     try {
-      const response = await fetch("/api/export", {
+      const params = new URLSearchParams();
+      if (exportStartDate) params.set("startDate", exportStartDate);
+      if (exportEndDate) params.set("endDate", exportEndDate);
+      const query = params.toString();
+      const response = await fetch(`/api/export${query ? `?${query}` : ""}`, {
         method: "GET",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) throw new Error("Export failed");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = "transactions.csv";
+      const rangeLabel = exportStartDate || exportEndDate ? `_${exportStartDate || "start"}_to_${exportEndDate || "end"}` : "";
+      a.href = url; a.download = `transactions${rangeLabel}.csv`;
       document.body.appendChild(a); a.click(); a.remove();
       window.URL.revokeObjectURL(url);
       showToast("CSV downloaded");
     } catch { showToast("Download failed", "error"); }
   };
 
+  const saveBankPreferences = async () => {
+    const token = getToken();
+    const res = await fetch("/api/preferences", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ banks, default_bank: defaultBank }) });
+    const data = await res.json();
+    if (!data.success) return showToast("Could not save bank preferences", "error");
+    setPreferences?.(data.preferences);
+    localStorage.setItem("moneypot_banks", data.preferences.banks);
+    localStorage.setItem("moneypot_default_bank", data.preferences.default_bank);
+    showToast("Bank preferences saved");
+  };
+
+  const savePin = async (pin) => {
+    setSecurityBusy(true);
+    setSecurityError("");
+    try {
+      await onSetPin?.(pin);
+      setPinDialogOpen(false);
+      showToast(security?.pin_enabled ? "PIN changed" : "PIN enabled");
+    } catch (error) {
+      setSecurityError(error?.message || "Could not save PIN");
+    } finally {
+      setSecurityBusy(false);
+    }
+  };
+
+  const disablePin = async () => {
+    setSecurityBusy(true);
+    setSecurityError("");
+    try {
+      await onDisablePin?.();
+      showToast("PIN disabled");
+    } catch (error) {
+      showToast(error?.message || "Could not disable PIN", "error");
+    } finally {
+      setSecurityBusy(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      const response = await fetch("/api/account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ password: deletePassword, confirmation: deleteConfirmation }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || "Could not delete account.");
+      clearToken();
+      sessionStorage.clear();
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      setDeleteError(error?.message || "Could not delete account.");
+      setDeleteBusy(false);
+    }
+  };
+
   const sideNavItems = [
-    { key: "page0", icon: "/rof.png",     label: "Profile"  },
-    { key: "page1", icon: "/export.png",  label: "Export"   },
-    { key: "page2", icon: "/bar-chart.png", label: "AI / Ollama" },
+    { key: "page0", Icon: User,      label: "Profile"  },
+    { key: "page1", Icon: FileDown,  label: "Export"   },
+    { key: "page2", Icon: BarChart3, label: "AI / Ollama" },
+    { key: "page3", Icon: Building2, label: "Banks" },
+    { key: "page4", Icon: ShieldCheck, label: "Security" },
+    { key: "page5", Icon: Trash2, label: "Delete account" },
   ];
 
   // Status badge helper
@@ -157,32 +293,37 @@ const Setting = memo(function Setting({ user, setUser }) {
   };
 
   return (
-    <div className="transdiv" style={{ padding:"24px 20px 0" }}>
-      <h1 style={{ fontSize:"clamp(20px,4vw,26px)", fontWeight:700, letterSpacing:"-0.5px", marginBottom:20 }}>Settings</h1>
+    <div className="transdiv settings-page">
+      <header className="settings-title"><h1>Settings</h1><p>Manage your profile, data, local AI, and accounts.</p></header>
 
       <div className="settingdiv">
         {/* Left nav */}
         <div className="settigndivheading">
-          {sideNavItems.map(({ key, icon, label }) => (
+          {sideNavItems.map(({ key, Icon, label }) => (
             <button
               key={key}
               className={`button ${page === key ? "active" : ""}`}
               onClick={() => setPage(key)}
+              aria-current={page === key ? "page" : undefined}
               style={{ marginBottom:4 }}
             >
-              <Image alt={label} src={icon} height={16} width={16} style={{ opacity: page===key ? 1 : 0.5 }} />
+              <Icon size={16} strokeWidth={2} style={{ opacity: page===key ? 1 : 0.5 }} aria-hidden="true" />
               <p>{label}</p>
             </button>
           ))}
         </div>
 
         {/* Content */}
-        <div className="formsett" style={{ paddingTop:4 }}>
+        <div className="formsett">
+          <motion.div key={page} className="settings-content"
+            initial={reduceMotion ? { opacity:0 } : { opacity:0, x:12 }}
+            animate={{ opacity:1, x:0 }}
+            transition={{ duration:reduceMotion ? .1 : .24, ease:easeOut }}>
 
           {/* ── Profile tab ── */}
           {page === "page0" && (
-            <form onSubmit={handleSubmit} className="formsettt" style={{ gap:0 }}>
-              <div style={{ position:"relative", marginBottom:20 }}>
+            <form onSubmit={handleSubmit} className="formsettt settings-profile-form">
+              <div className="settings-avatar">
                 <Image
                   alt="Profile"
                   src={image && image.startsWith("blob:") ? image : image && image.startsWith("/uploads/") ? `/api/get-uploaded-file?file=${encodeURIComponent(image)}` : (image || "/profile.png")}
@@ -195,26 +336,27 @@ const Setting = memo(function Setting({ user, setUser }) {
                   background:"var(--accent)", border:"2px solid var(--bg-secondary)",
                   display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
                 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                  </svg>
-                  <input type="file" accept="image/*" style={{ display:"none" }} onChange={handleFileChange} />
+                  <Camera size={12} strokeWidth={2.5} color="white" aria-hidden="true" />
+                  <input type="file" aria-label="Choose profile image" accept="image/jpeg,image/png,image/gif,image/webp" style={{ display:"none" }} onChange={handleFileChange} />
                 </label>
               </div>
-              {file && <p style={{ fontSize:11, color:"var(--text-muted)", marginBottom:12 }}>📎 {file.name}</p>}
+              {file && <p style={{ fontSize:11, color:"var(--text-muted)", marginBottom:12, display:"flex", alignItems:"center", gap:5 }}><Paperclip size={12} aria-hidden="true" /> {file.name}</p>}
 
               {[
-                { label:"Name",  key:"name", value:name, setter:setName, icon:"/user.png",  type:"text"   },
-                { label:"Age",   key:"age",  value:age,  setter:setAge,  icon:"/age.png",   type:"number" },
-                { label:"Email", key:"mail", value:mail, setter:setMail, icon:"/email.png", type:"email"  },
-              ].map(({ label, key, value, setter, icon, type }) => (
-                <div key={key} style={{ width:"100%", maxWidth:320, marginBottom:14 }}>
-                  <p style={{ fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>{label}</p>
+                { label:"Name",  key:"name", value:name, setter:setName, Icon:User,      type:"text"   },
+                { label:"Age",   key:"age",  value:age,  setter:setAge,  Icon:UserRound, type:"number" },
+                { label:"Email", key:"mail", value:mail, setter:setMail, Icon:Mail,      type:"email"  },
+              ].map(({ label, key, value, setter, Icon, type }) => (
+                <div key={key} className="settings-field">
+                  <label htmlFor={`profile-${key}`} style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--text-muted)", marginBottom:6 }}>{label}</label>
                   <div className="label" style={{ width:"100%", maxWidth:"100%" }}>
-                    <Image alt={label} src={icon} height={24} width={24} style={{ opacity:0.6, flexShrink:0 }} />
+                    <Icon size={24} strokeWidth={1.8} style={{ opacity:0.6, flexShrink:0 }} aria-hidden="true" />
                     <input
+                      id={`profile-${key}`}
                       type={type} name={key} value={value || ""}
+                      min={key === "age" ? 13 : undefined}
+                      max={key === "age" ? 120 : undefined}
+                      maxLength={key === "name" ? 80 : undefined}
                       onChange={e => setter(e.target.value)}
                       style={{ flex:1, minWidth:0, padding:"10px 12px", fontSize:14 }}
                     />
@@ -222,7 +364,7 @@ const Setting = memo(function Setting({ user, setUser }) {
                 </div>
               ))}
 
-              <button type="submit" className="loginbutton" disabled={saving} style={{ marginTop:8, opacity: saving ? 0.7 : 1 }}>
+              <button type="submit" className="loginbutton" disabled={saving} style={{ opacity: saving ? 0.7 : 1 }}>
                 {saving ? "Saving…" : "Update Profile"}
               </button>
             </form>
@@ -230,46 +372,78 @@ const Setting = memo(function Setting({ user, setUser }) {
 
           {/* ── Export tab ── */}
           {page === "page1" && (
-            <div style={{ width:"100%", maxWidth:460, paddingTop:8 }}>
-              <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:16, padding:"24px 20px", marginBottom:16 }}>
-                <div style={{ fontSize:32, marginBottom:12 }}>📊</div>
+            <div className="settings-export">
+              <div className="settings-surface export-surface">
+                <BarChart3 size={32} style={{ marginBottom:12 }} aria-hidden="true" />
                 <h3 style={{ fontSize:16, fontWeight:600, marginBottom:8 }}>Export to CSV</h3>
                 <p style={{ fontSize:13, color:"var(--text-muted)", lineHeight:1.6, marginBottom:20 }}>
-                  Download all your transactions as a CSV file for use in Excel, Google Sheets, or any data analysis tool.
+                  Download your transactions as a CSV file for use in Excel, Google Sheets, or any data analysis tool.
                 </p>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:18 }}>
+                  <div>
+                    <label className="form-label" htmlFor="export-start-date">Start date</label>
+                    <DatePicker
+                      id="export-start-date"
+                      ariaLabel="Export start date"
+                      className="form-input"
+                      value={exportStartDate}
+                      max={exportEndDate || undefined}
+                      onChange={e => setExportStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" htmlFor="export-end-date">End date</label>
+                    <DatePicker
+                      id="export-end-date"
+                      ariaLabel="Export end date"
+                      className="form-input"
+                      value={exportEndDate}
+                      min={exportStartDate || undefined}
+                      onChange={e => setExportEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {(exportStartDate || exportEndDate) && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => { setExportStartDate(""); setExportEndDate(""); }}
+                    style={{ width:"100%", justifyContent:"center", marginBottom:10 }}
+                  >
+                    Clear date range
+                  </button>
+                )}
                 <button onClick={downloadCSV} className="btn-primary" style={{ width:"100%", justifyContent:"center", padding:"12px" }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
+                  <Download size={16} strokeWidth={2} aria-hidden="true" />
                   Download CSV
                 </button>
               </div>
               <p style={{ fontSize:11, color:"var(--text-muted)", lineHeight:1.6 }}>
-                The export includes all transaction fields: date, type, category, description, and amount.
+                Leave dates empty to export all transactions. The export includes date, type, category, description, amount, and bank fields.
               </p>
             </div>
           )}
 
           {/* ── AI / Ollama tab ── */}
           {page === "page2" && (
-            <div style={{ width:"100%", maxWidth:460, paddingTop:8 }}>
+            <div className="settings-ai">
 
               {/* Status card */}
-              <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:14, padding:"16px 18px", marginBottom:14 }}>
+              <div className="settings-surface ai-connection">
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
                   <p style={{ fontSize:13, fontWeight:600 }}>Ollama Connection</p>
                   <StatusBadge />
                 </div>
 
                 {/* URL input */}
-                <p style={{ fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>Ollama URL</p>
+                <label htmlFor="ollama-url" style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--text-muted)", marginBottom:6 }}>Ollama URL</label>
                 <div style={{ display:"flex", gap:8, marginBottom:14 }}>
                   <input
+                    id="ollama-url"
                     type="text"
                     value={ollamaUrl}
                     onChange={e => { setOllamaUrl(e.target.value); setOllamaStatus(null); }}
-                    placeholder="http://localhost:11434"
+                    placeholder="http://127.0.0.1:11434"
                     style={{
                       flex:1, background:"var(--bg-primary)", border:"1px solid var(--border)",
                       borderRadius:8, padding:"8px 12px", fontSize:13, color:"azure", outline:"none",
@@ -285,14 +459,15 @@ const Setting = memo(function Setting({ user, setUser }) {
                       opacity: ollamaStatus === "checking" ? 0.6 : 1,
                     }}
                   >
-                    {ollamaStatus === "checking" ? "…" : "Test"}
+                    {ollamaStatus === "checking" ? "…" : "Find models"}
                   </button>
                 </div>
 
                 {/* Model selector */}
-                <p style={{ fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>Model</p>
+                <label htmlFor="ollama-model" style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--text-muted)", marginBottom:6 }}>Model</label>
                 {availableModels.length > 0 ? (
                   <select
+                    id="ollama-model"
                     value={ollamaModel}
                     onChange={e => setOllamaModel(e.target.value)}
                     style={{
@@ -301,12 +476,18 @@ const Setting = memo(function Setting({ user, setUser }) {
                       outline:"none", cursor:"pointer", marginBottom:14,
                     }}
                   >
-                    {availableModels.map(m => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
+                    {!availableModels.includes(ollamaModel) && (
+                      <option value={ollamaModel}>{ollamaModel} (saved)</option>
+                    )}
+                    {availableModels.map(model => {
+                      const details = modelDetails.find(item => item.name === model);
+                      const metadata = [details?.details?.parameter_size, details?.details?.quantization_level].filter(Boolean).join(" · ");
+                      return <option key={model} value={model}>{model}{metadata ? ` — ${metadata}` : ""}{ollamaStatus?.recommended === model ? " (recommended)" : ""}</option>;
+                    })}
                   </select>
                 ) : (
                   <input
+                    id="ollama-model"
                     type="text"
                     value={ollamaModel}
                     onChange={e => setOllamaModel(e.target.value)}
@@ -320,21 +501,27 @@ const Setting = memo(function Setting({ user, setUser }) {
                 )}
                 {availableModels.length === 0 && (
                   <p style={{ fontSize:11, color:"var(--text-muted)", marginBottom:14 }}>
-                    Click <strong>Test</strong> to auto-detect installed models, or type a model name manually.
+                    MoneyPot checks Ollama automatically. Use <strong>Find models</strong> to refresh, or type a model name manually.
                   </p>
                 )}
 
-                <button onClick={saveOllamaPrefs} className="loginbutton" style={{ width:"100%" }}>
-                  Save Settings
+                {ollamaStatus?.ok && !ollamaStatus.preferredAvailable && ollamaStatus.selected && (
+                  <p style={{ fontSize:11, color:"var(--accent-hover)", marginBottom:14 }}>
+                    Your saved model is not installed. Recommended available model: <strong>{ollamaStatus.selected}</strong>. Select it above and save if you want to make it your default.
+                  </p>
+                )}
+
+                <button onClick={saveOllamaPrefs} disabled={ollamaSaving} className="loginbutton" style={{ width:"100%" }}>
+                  {ollamaSaving ? "Saving…" : "Save settings"}
                 </button>
               </div>
 
               {/* Info card */}
-              <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:14, padding:"14px 18px" }}>
+              <div className="settings-help">
                 <p style={{ fontSize:12, fontWeight:600, marginBottom:8, color:"azure" }}>ℹ️ How it works</p>
                 <p style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.7, marginBottom:6 }}>
-                  AI Insights uses your local <strong style={{ color:"azure" }}>Ollama</strong> instance — no data leaves your machine.
-                  Only the last <strong style={{ color:"azure" }}>3 months</strong> of transactions are sent, compressed to minimise tokens.
+                  AI Insights sends the last <strong style={{ color:"azure" }}>3 months</strong> of transactions to the saved Ollama origin.
+                  Installed models are discovered locally and ranked for text analysis. Settings can be saved while Ollama is stopped. If the saved model is unavailable at analysis time, MoneyPot uses the best available text model for that request without overwriting your preference.
                 </p>
                 <p style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.7 }}>
                   Install Ollama: <code style={{ background:"var(--bg-primary)", padding:"1px 5px", borderRadius:4, fontSize:11 }}>ollama.com/download</code><br/>
@@ -343,14 +530,116 @@ const Setting = memo(function Setting({ user, setUser }) {
               </div>
             </div>
           )}
+          {page === "page3" && (
+            <div className="settings-panel">
+              <div className="settings-panel-header">
+                <h2>Bank accounts</h2>
+                <p>Add only the banks you use. Transaction forms will use this shorter list and preselect your default.</p>
+              </div>
+              <div className="bank-add-row">
+                <label className="sr-only" htmlFor="new-bank">Bank or account name</label>
+                <input id="new-bank" className="form-input" maxLength={80} value={newBank} onChange={e => setNewBank(e.target.value)} placeholder="Bank or account name" />
+                <button className="btn-secondary" onClick={() => { const value = newBank.trim(); if (value && !banks.includes(value)) setBanks([...banks, value]); setNewBank(""); }}><Plus size={16} aria-hidden="true" /> Add bank</button>
+              </div>
+              <div className="bank-preference-list">
+                <AnimatePresence initial={false}>
+                {banks.length === 0 && <motion.div key="empty" className="empty-state compact" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>No banks saved yet. Add your primary account above.</motion.div>}
+                {banks.map((bank, index) => (
+                  <motion.div className="bank-preference-row" key={bank} layout
+                    initial={reduceMotion ? {opacity:0} : {opacity:0,y:-7}}
+                    animate={{opacity:1,y:0}} exit={reduceMotion ? {opacity:0} : {opacity:0,x:-12}}
+                    transition={{duration:reduceMotion ? .1 : .2,delay:index*.025,ease:easeOut}}>
+                    <label><input type="radio" name="defaultBank" checked={defaultBank === bank} onChange={() => setDefaultBank(bank)} /> <span><strong>{bank}</strong><small>{defaultBank === bank ? "Default for new transactions" : "Available in transaction forms"}</small></span></label>
+                    <button className="btn-ghost btn-danger-ghost" aria-label={`Remove ${bank}`} onClick={() => { setBanks(banks.filter(b => b !== bank)); if (defaultBank === bank) setDefaultBank(""); }}><Trash2 size={15} aria-hidden="true" /></button>
+                  </motion.div>
+                ))}
+                </AnimatePresence>
+              </div>
+              <button className="btn-primary" onClick={saveBankPreferences}>Save bank preferences</button>
+            </div>
+          )}
+          {page === "page4" && (
+            <div className="settings-panel security-settings">
+              <div className="settings-panel-header">
+                <h2>App lock</h2>
+                <p>Use a profile-specific PIN for faster local access. Your full password remains available.</p>
+              </div>
+
+              <div className="security-method-row">
+                <span className="security-method-icon" aria-hidden="true"><KeyRound /></span>
+                <div className="security-method-copy">
+                  <strong>Six-digit PIN</strong>
+                  <span>{security?.pin_enabled ? "Enabled for this MoneyPot profile" : "Not configured"}</span>
+                </div>
+                <div className="security-method-actions">
+                  <Button type="button" onClick={() => { setSecurityError(""); setPinDialogOpen(true); }} disabled={securityBusy}>
+                    <KeyRound data-icon="inline-start" />
+                    {security?.pin_enabled ? "Change PIN" : "Set PIN"}
+                  </Button>
+                  {security?.pin_enabled && (
+                    <Button type="button" variant="outline" onClick={disablePin} disabled={securityBusy}>
+                      {securityBusy ? "Updating…" : "Disable"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <Alert>
+                <ShieldCheck aria-hidden="true" />
+                <AlertTitle>Stored securely</AlertTitle>
+                <AlertDescription>
+                  MoneyPot stores only a salted hash of your PIN in the local database. The PIN itself cannot be read back, and repeated failures temporarily disable PIN sign-in.
+                </AlertDescription>
+              </Alert>
+              <p className="security-fallback-note">
+                A PIN is for convenient local access and is not a replacement for your full account password. Use a different PIN for each MoneyPot profile.
+              </p>
+            </div>
+          )}
+          {page === "page5" && (
+            <div className="settings-panel account-danger-zone">
+              <div className="settings-panel-header">
+                <h2>Delete account</h2>
+                <p>Permanently remove this profile and all of its MoneyPot data from this device.</p>
+              </div>
+              <Alert variant="destructive">
+                <AlertTriangle aria-hidden="true" />
+                <AlertTitle>This cannot be undone</AlertTitle>
+                <AlertDescription>
+                  Transactions, budgets, goals, preferences, saved banks, PIN settings, and the uploaded profile image for this account will be deleted.
+                </AlertDescription>
+              </Alert>
+              <div className="settings-field">
+                <label className="form-label" htmlFor="delete-account-password">Current password</label>
+                <input id="delete-account-password" className="form-input" type="password" autoComplete="current-password"
+                  value={deletePassword} onChange={event => setDeletePassword(event.target.value)} disabled={deleteBusy} />
+              </div>
+              <div className="settings-field">
+                <label className="form-label" htmlFor="delete-account-confirmation">Type DELETE to confirm</label>
+                <input id="delete-account-confirmation" className="form-input" type="text" autoComplete="off"
+                  value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} disabled={deleteBusy} />
+              </div>
+              {deleteError && <p className="settings-inline-error" role="alert">{deleteError}</p>}
+              <Button type="button" variant="destructive" onClick={deleteAccount}
+                disabled={deleteBusy || !deletePassword || deleteConfirmation !== "DELETE"}>
+                <Trash2 data-icon="inline-start" aria-hidden="true" />
+                {deleteBusy ? "Deleting account…" : "Delete this account"}
+              </Button>
+            </div>
+          )}
+          </motion.div>
         </div>
       </div>
 
+      <AnimatePresence>
       {toast && (
-        <div className={`toast toast-${toast.type}`}>
-          <span>{toast.type === "success" ? "✓" : "✗"}</span> {toast.msg}
-        </div>
+          <motion.div className={`toast toast-${toast.type}`} role="status" aria-live="polite" initial={{opacity:0,x:18}} animate={{opacity:1,x:0}} exit={{opacity:0,x:18}} transition={{duration:.2,ease:easeOut}}>
+          <span>{toast.type === "success" ? <Check size={14} aria-hidden="true" /> : <X size={14} aria-hidden="true" />}</span> {toast.msg}
+          </motion.div>
       )}
+      </AnimatePresence>
+      <PinSetupDialog open={pinDialogOpen} busy={securityBusy} error={securityError}
+        onSave={savePin} onDismiss={() => { if (!securityBusy) { setPinDialogOpen(false); setSecurityError(""); } }} />
     </div>
   );
 });

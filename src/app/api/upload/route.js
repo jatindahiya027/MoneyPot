@@ -1,65 +1,71 @@
 // src/app/api/upload/route.js
 import { NextResponse } from "next/server";
 import path from "path";
-import { writeFile } from "fs/promises";
-import fs from 'fs';
+import { randomUUID } from "crypto";
+import { mkdir, unlink, writeFile } from "fs/promises";
+import { authenticateRequest } from "@/libs/auth";
+import { getDb } from "@/libs/db";
 
-const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-//console.log(uploadDir);
-// Ensure upload directory exists
-fs.mkdirSync(uploadDir, { recursive: true });
+const uploadDir = process.env.MONEYPOT_DATA_DIR
+  ? path.join(process.env.MONEYPOT_DATA_DIR, 'uploads')
+  : path.join(process.cwd(), 'public', 'uploads');
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGES = {
+  "image/jpeg": { extension: ".jpg", signature: buffer => buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff },
+  "image/png": { extension: ".png", signature: buffer => buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) },
+  "image/gif": { extension: ".gif", signature: buffer => ["GIF87a", "GIF89a"].includes(buffer.subarray(0, 6).toString("ascii")) },
+  "image/webp": { extension: ".webp", signature: buffer => buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP" },
+};
 
 export async function POST(req) {
-  const formData = await req.formData();
+  const payload = await authenticateRequest(req);
+  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const file = formData.get("file");
- // Check if a file is received
- if (!file) {
-  // If no file is received, return a JSON response with an error and a 400 status code
-  return NextResponse.json({ error: "No files received." }, { status: 400 });
-}
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > MAX_FILE_BYTES + 128 * 1024) {
+    return NextResponse.json({ error: "Image must be 5 MB or smaller." }, { status: 413 });
+  }
 
-// Convert the file data to a Buffer
-const buffer = Buffer.from(await file.arrayBuffer());
-
-// Replace spaces in the file name with underscores
-const filename = file.name.replaceAll(" ", "_");
-// Generate a random suffix
-  
-    // Generate a random suffix of 50 characters
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let randomSuffix = '';
-    for (let i = 0; i < 50; i++) {
-        randomSuffix += characters.charAt(Math.floor(Math.random() * characters.length));
+  try {
+    const formData = await req.formData();
+    const file = formData.get("file");
+    if (!file || typeof file.arrayBuffer !== "function") {
+      return NextResponse.json({ error: "Select an image to upload." }, { status: 400 });
+    }
+    const imageType = ALLOWED_IMAGES[file.type];
+    if (!imageType) {
+      return NextResponse.json({ error: "Use a JPEG, PNG, GIF, or WebP image." }, { status: 415 });
+    }
+    if (file.size < 1 || file.size > MAX_FILE_BYTES) {
+      return NextResponse.json({ error: "Image must be between 1 byte and 5 MB." }, { status: 413 });
     }
 
-    // Find the position of the last dot to get the file extension
-    const lastDotIndex = filename.lastIndexOf(".");
-    let newFilename;
-
-    if (lastDotIndex !== -1) {
-        // If there's an extension, insert the random suffix before the extension
-        const name = filename.substring(0, lastDotIndex);
-        const extension = filename.substring(lastDotIndex);
-        newFilename = `${name}_${randomSuffix}${extension}`;
-    } else {
-        // If there's no extension, just append the random suffix
-        newFilename = `${filename}_${randomSuffix}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    if (!imageType.signature(buffer)) {
+      return NextResponse.json({ error: "The uploaded file is not a valid image." }, { status: 415 });
     }
-// //console.log(newFilename);
 
-try {
-  // Write the file to the specified directory (public/assets) with the modified filename
-  await writeFile(
-    path.join(process.cwd(), "public/uploads/" + newFilename),
-    buffer
-  );
-
-  // Return a JSON response with a success message and a 201 status code
-  return NextResponse.json({ Message: "/uploads/"+newFilename, status: 201 });
-} catch (error) {
-  // If an error occurs during file writing, log the error and return a JSON response with a failure message and a 500 status code
-  //console.log("Error occurred ", error);
-  return NextResponse.json({ Message: "Failed", status: 500 });
+    await mkdir(uploadDir, { recursive: true });
+    const filename = `${randomUUID()}${imageType.extension}`;
+    await writeFile(path.join(uploadDir, filename), buffer, { flag: "wx", mode: 0o600 });
+    return NextResponse.json({ Message: `/uploads/${filename}` }, { status: 201 });
+  } catch (error) {
+    console.error("Profile image upload failed:", error);
+    return NextResponse.json({ error: "Image upload failed." }, { status: 500 });
+  }
 }
-};
+
+export async function DELETE(req) {
+  const payload = await authenticateRequest(req);
+  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const filename = path.basename(new URL(req.url).searchParams.get("file") || "");
+  if (!/^[0-9a-f-]+\.(?:jpg|png|gif|webp)$/i.test(filename)) {
+    return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
+  }
+  const image = `/uploads/${filename}`;
+  const db = await getDb();
+  const referenced = await db.get("SELECT 1 FROM users WHERE image=? LIMIT 1", [image]);
+  if (referenced) return NextResponse.json({ error: "Upload is in use" }, { status: 409 });
+  await unlink(path.join(uploadDir, filename)).catch(() => {});
+  return NextResponse.json({ success: true });
+}
